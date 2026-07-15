@@ -23,9 +23,8 @@ To use, simply execute the `tf_image` script from the root of your repository. Y
 ```
 
 ## AWS Authentication
-`aws-runas` is installed in the image, so it can be used directly in the image.
-
-If you wish to pass in your credentials to the container at runtime, rather than using `aws-runas` in the container, you can do so by running the following command (assuming you have `aws-runas` installed locally):
+`aws-runas` is not installed in the image. If you have it installed on the host,
+you can use it to pass temporary AWS credentials into the container at runtime:
 
     aws-runas -E <profile_name> ./tf_image
 
