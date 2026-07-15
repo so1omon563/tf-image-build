@@ -16,18 +16,8 @@ concurrency:
 
 jobs:
   build:
-    name: Build and smoke test (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-24.04
-            suffix: amd64
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-            suffix: arm64
+    name: Build and smoke test (linux/amd64)
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -40,16 +30,16 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           load: true
-          tags: tf-image-build:ci-${{ matrix.suffix }}
-          cache-from: type=gha,scope=image-ci-${{ matrix.suffix }}
-          cache-to: type=gha,mode=max,scope=image-ci-${{ matrix.suffix }},ignore-error=true
+          tags: tf-image-build:ci-amd64
+          cache-from: type=gha,scope=image-ci-amd64
+          cache-to: type=gha,mode=max,scope=image-ci-amd64,ignore-error=true
 
       - name: Smoke test tool inventory
         run: |
           docker run --rm \
-            --platform "${{ matrix.platform }}" \
+            --platform linux/amd64 \
             --volume "$PWD/tests:/tests:ro" \
-            "tf-image-build:ci-${{ matrix.suffix }}" \
+            tf-image-build:ci-amd64 \
             /tests/smoke-tool-inventory.sh
