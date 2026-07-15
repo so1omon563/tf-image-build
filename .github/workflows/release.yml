@@ -26,6 +26,7 @@ jobs:
           default_bump: patch
           release_marker: "#release #publish #ship"
 
+  # Failed-job retries must reuse the completed bump instead of creating a new tag.
   publish-release:
     needs: bump-version
     if: needs.bump-version.outputs.release_requested == 'true'
