@@ -60,3 +60,9 @@ Unlike `tfsec`, Trivy exits with code 0 on findings by default. Keep `--exit-cod
 ## Build and release
 
 Pull requests and updates to `main` run static checks, then build, exercise, and vulnerability-scan the complete runtime contract on native Linux AMD64 and Linux ARM64 GitHub-hosted runners. A weekly scheduled run performs clean builds with a fresh base pull but never tags or publishes an image. Release candidates must pass the same per-architecture tests and security gate from clean builds before GitHub and Docker Hub publication. The trusted publisher pushes both variants under one manifest for the immutable version tag and the moving `latest` alias, with explicit SBOM and max-level provenance attestations. See [`SECURITY.md`](SECURITY.md) for the base lifecycle, scan policy, exception rules, and retained evidence.
+
+Dependabot checks the Docker base and GitHub Actions weekly. A separate audit
+checks release binaries, source archives, direct Python requirements, the
+`docker://` Action reference, and Ubuntu snapshot freshness. See
+[`DEPENDENCY_UPDATES.md`](DEPENDENCY_UPDATES.md) for triage, grouping, evidence,
+and failed-update requirements.

@@ -1,0 +1,60 @@
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: "23 13 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dependency-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Check manually pinned dependencies
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check current versions
+        id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/dependency_audit.py \
+            --output dependency-audit.md \
+            --github-output "$GITHUB_OUTPUT"
+          cat dependency-audit.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update dependency tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          UPDATES_AVAILABLE: ${{ steps.audit.outputs.updates }}
+        run: |
+          title='Dependency audit: manual pins need review'
+          issue_number=$(gh issue list \
+            --state open \
+            --search "${title} in:title" \
+            --json number,title \
+            --jq ".[] | select(.title == \"${title}\") | .number" \
+            | head -n 1)
+
+          if [ "$UPDATES_AVAILABLE" = true ]; then
+            if [ -n "$issue_number" ]; then
+              gh issue edit "$issue_number" --body-file dependency-audit.md
+            else
+              gh issue create \
+                --title "$title" \
+                --body-file dependency-audit.md \
+                --assignee so1omon563
+            fi
+          elif [ -n "$issue_number" ]; then
+            gh issue close "$issue_number" \
+              --comment 'The scheduled audit found no outstanding manual dependency updates.'
+          fi
