@@ -92,7 +92,8 @@ version_workspace=$(mktemp -d)
 cp "$fixture_dir/.terraform-version" "$fixture_dir/.terragrunt-version" "$version_workspace/"
 
 [ "$(cd "$version_workspace" && tfenv version-name)" = "$(cat "$fixture_dir/.terraform-version")" ]
-[ "$(cd "$version_workspace" && tgenv version-name)" = "$(cat "$fixture_dir/.terragrunt-version")" ]
+tgenv_version=$(cd "$version_workspace" && tgenv version-name | tail -n 1)
+[ "$tgenv_version" = "$(cat "$fixture_dir/.terragrunt-version")" ]
 
 if ! (cd "$version_workspace" && tfenv install) >/tmp/tfenv-install.log 2>&1; then
     cat /tmp/tfenv-install.log >&2

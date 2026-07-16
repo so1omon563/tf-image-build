@@ -1,0 +1,4 @@
+# Exceptions are intentionally empty. Any future entry must follow SECURITY.md:
+# it needs a narrow path or package selector, a justification, an expiry date,
+# and a linked tracking issue.
+vulnerabilities: []

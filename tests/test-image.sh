@@ -17,12 +17,26 @@ if [ "$image_user" != terraform ]; then
     exit 1
 fi
 
+image_size=$(docker image inspect --format '{{.Size}}' "$image")
+printf 'image-size-bytes=%s\n' "$image_size"
+
 docker run --rm \
     --platform "linux/$arch" \
     --env "EXPECTED_ARCH=$arch" \
     --volume "$PWD/tests:/tests:ro" \
     "$image" \
     /tests/smoke-tool-inventory.sh
+
+docker run --rm --platform "linux/$arch" "$image" sh -ceu '
+    test "$(. /etc/os-release && printf %s "$VERSION_ID")" = 24.04
+    ! getent passwd ubuntu
+    ! getent group ubuntu
+    test ! -e /tmp/requirements.lock
+    test ! -e /usr/local/bin/download-and-verify
+    test -z "$(find /etc/apt/sources.list.d -mindepth 1 -print -quit)"
+    ! grep -Ev "^[[:space:]]*(#|$|deb https://snapshot.ubuntu.com/ubuntu/)" /etc/apt/sources.list
+    test -z "$(find /var/lib/apt/lists -maxdepth 1 -type f ! -name lock -print -quit)"
+'
 
 launcher_root=$(mktemp -d)
 trap 'rm -rf "$launcher_root"' EXIT HUP INT TERM
