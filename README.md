@@ -4,6 +4,10 @@ Simple image to handle running Terraform / Terragrunt. It also includes a pinned
 
 Uses GitHub Actions to build. Build output can be found [here](https://hub.docker.com/r/so1omon/tf_image).
 
+## Supported platforms
+
+Published version tags and `latest` are multi-platform images for Linux AMD64 and Linux ARM64. Docker selects the native variant automatically, including on Apple Silicon hosts. Use an explicit `--platform` only when intentionally testing compatibility with the other architecture.
+
 ## Runtime contract
 
 The image currently starts `/bin/zsh` as `root`. Common Ubuntu package names are exposed as the expected `fd` and `bat` commands, and retained tools are available to non-interactive commands through the image `PATH`.
@@ -49,4 +53,4 @@ Unlike `tfsec`, Trivy exits with code 0 on findings by default. Keep `--exit-cod
 
 ## Build and release
 
-Pull requests and updates to `main` run static checks, build the Linux/AMD64 image, and exercise its runtime contract. A release candidate must pass the same image tests before GitHub and Docker Hub publication. The image build now selects native AMD64 or ARM64 tool artifacts; multi-architecture CI and publication are tracked separately, and the current published image remains Linux/AMD64.
+Pull requests and updates to `main` run static checks, then build and exercise the complete runtime contract on native Linux AMD64 and Linux ARM64 GitHub-hosted runners. Release candidates must pass the same per-architecture tests before GitHub and Docker Hub publication. The trusted publisher pushes both variants under one manifest for the immutable version tag and the moving `latest` alias.

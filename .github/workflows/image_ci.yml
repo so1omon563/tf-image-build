@@ -28,9 +28,9 @@ jobs:
           args: -color
 
       - name: Lint shell scripts
-        run: shellcheck --severity=warning example_usage/tf_image scripts/* tests/*.sh
+        run: shellcheck --severity=warning example_usage/tf_image example_usage/tg_ci.sh scripts/* tests/*.sh
 
-      - name: Test launcher argument construction
+      - name: Test Python contracts
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
       - name: Test pinned build inputs
@@ -46,9 +46,17 @@ jobs:
             hadolint --config /work/.hadolint.yaml - < Dockerfile
 
   build:
-    name: Build and smoke test (linux/amd64)
+    name: Build and smoke test (linux/${{ matrix.arch }})
     needs: static
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -61,11 +69,11 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           load: true
-          tags: tf-image-build:ci-amd64
-          cache-from: type=gha,scope=image-ci-amd64
-          cache-to: type=gha,mode=max,scope=image-ci-amd64,ignore-error=true
+          tags: tf-image-build:ci-${{ matrix.arch }}
+          cache-from: type=gha,scope=image-ci-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=image-ci-${{ matrix.arch }},ignore-error=true
 
       - name: Test image contract
-        run: tests/test-image.sh tf-image-build:ci-amd64 amd64
+        run: tests/test-image.sh tf-image-build:ci-${{ matrix.arch }} ${{ matrix.arch }}
