@@ -23,49 +23,49 @@ history_file="$home/.zsh_history"
 mkdir -p "$precommit_cache" "$plugin_cache"
 touch "$history_file"
 
-set -- run --rm
+# Preserve the requested container command while prepending Docker options.
+set -- "$IMAGE" "$@"
 
-if [ -t 0 ] && [ -t 1 ]; then
-    set -- "$@" -it
+set -- -h "$(basename "$workspace")" "$@"
+set -- -e "WORKSPACE=$workspace" "$@"
+set -- -e "TF_PLUGIN_CACHE_DIR=/root/.terraform.d/plugin-cache" "$@"
+
+if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+    set -- -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" "$@"
 fi
-
-set -- "$@" \
-    -v "$workspace:/workspace" \
-    -v "$precommit_cache:/root/.cache/pre-commit" \
-    -v "$plugin_cache:/root/.terraform.d/plugin-cache:rw" \
-    -v "$history_file:/root/.zsh_history:rw"
-
-if [ -d "$home/.ssh" ]; then
-    set -- "$@" -v "$home/.ssh:/root/.ssh:ro"
+if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+    set -- -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" "$@"
+fi
+if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+    set -- -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" "$@"
+fi
+if [ -n "${AWS_REGION:-}" ]; then
+    set -- -e "AWS_REGION=$AWS_REGION" "$@"
+fi
+if [ -n "${AWS_PROFILE:-}" ]; then
+    set -- -e "AWS_PROFILE=$AWS_PROFILE" "$@"
+fi
+if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
+    set -- -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" "$@"
 fi
 
 if [ -d "$home/.aws" ]; then
-    set -- "$@" -v "$home/.aws:/root/.aws:rw"
+    set -- -v "$home/.aws:/root/.aws:rw" "$@"
 fi
 
-if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
-    set -- "$@" -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
-fi
-if [ -n "${AWS_PROFILE:-}" ]; then
-    set -- "$@" -e "AWS_PROFILE=$AWS_PROFILE"
-fi
-if [ -n "${AWS_REGION:-}" ]; then
-    set -- "$@" -e "AWS_REGION=$AWS_REGION"
-fi
-if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
-    set -- "$@" -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
-fi
-if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-    set -- "$@" -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
-fi
-if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
-    set -- "$@" -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN"
+if [ -d "$home/.ssh" ]; then
+    set -- -v "$home/.ssh:/root/.ssh:ro" "$@"
 fi
 
-set -- "$@" \
-    -e "TF_PLUGIN_CACHE_DIR=/root/.terraform.d/plugin-cache" \
-    -e "WORKSPACE=$workspace" \
-    -h "$(basename "$workspace")" \
-    "$IMAGE"
+set -- -v "$history_file:/root/.zsh_history:rw" "$@"
+set -- -v "$plugin_cache:/root/.terraform.d/plugin-cache:rw" "$@"
+set -- -v "$precommit_cache:/root/.cache/pre-commit" "$@"
+set -- -v "$workspace:/workspace" "$@"
+
+if [ -t 0 ] && [ -t 1 ]; then
+    set -- -it "$@"
+fi
+
+set -- run --rm "$@"
 
 exec docker "$@"
