@@ -11,6 +11,10 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
     def setUpClass(cls):
         cls.image_ci = (ROOT / ".github/workflows/image_ci.yml").read_text()
         cls.release = (ROOT / ".github/workflows/release.yml").read_text()
+        cls.dependency_audit = (
+            ROOT / ".github/workflows/dependency_audit.yml"
+        ).read_text()
+        cls.dependabot = (ROOT / ".github/dependabot.yml").read_text()
 
     def assert_native_matrix(self, workflow):
         self.assertRegex(
@@ -40,6 +44,28 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
         self.assertEqual(
             self.release.count("platforms: linux/amd64,linux/arm64"),
             1,
+        )
+
+    def test_dependabot_has_bounded_action_and_docker_queues(self):
+        self.assertIn("package-ecosystem: github-actions", self.dependabot)
+        self.assertIn("package-ecosystem: docker", self.dependabot)
+        self.assertIn("actions-minor-patch:", self.dependabot)
+        self.assertEqual(self.dependabot.count("interval: weekly"), 2)
+        self.assertIn("open-pull-requests-limit: 2", self.dependabot)
+        self.assertIn("open-pull-requests-limit: 1", self.dependabot)
+
+    def test_manual_dependency_audit_maintains_one_issue(self):
+        self.assertIn('cron: "23 13 * * 3"', self.dependency_audit)
+        self.assertIn("issues: write", self.dependency_audit)
+        self.assertIn("tools/dependency_audit.py", self.dependency_audit)
+        self.assertIn("|| audit_status=$?", self.dependency_audit)
+        self.assertLess(
+            self.dependency_audit.index('cat dependency-audit.md'),
+            self.dependency_audit.index('exit "$audit_status"'),
+        )
+        self.assertIn(
+            "Dependency audit: manual pins need review",
+            self.dependency_audit,
         )
 
 
