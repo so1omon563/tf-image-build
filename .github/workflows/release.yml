@@ -26,10 +26,40 @@ jobs:
           default_bump: patch
           release_marker: "#release #publish #ship"
 
-  # Failed-job retries must reuse the completed bump instead of creating a new tag.
-  publish-release:
+  validate-release:
     needs: bump-version
     if: needs.bump-version.outputs.release_requested == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.bump-version.outputs.new_tag }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build release candidate
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: tf-image-build:release-candidate-amd64
+          cache-from: type=gha,scope=release-validation-amd64
+          cache-to: type=gha,mode=max,scope=release-validation-amd64,ignore-error=true
+
+      - name: Test release candidate
+        run: tests/test-image.sh tf-image-build:release-candidate-amd64 amd64
+
+  # Failed-job retries must reuse the completed bump and validated candidate.
+  publish-release:
+    needs:
+      - bump-version
+      - validate-release
+    if: needs.bump-version.outputs.release_requested == 'true' && needs.validate-release.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout release tag
