@@ -16,50 +16,85 @@ fi
 
 workspace=$(pwd -P)
 home=${HOME:?HOME must be set}
-precommit_cache="$home/.cache/pre-commit"
-plugin_cache="$home/.terraform.d/plugin-cache"
-history_file="$home/.zsh_history"
+runtime_home="$home/.cache/tf-image/home"
+container_home=/home/terraform
+host_uid=$(id -u)
+host_gid=$(id -g)
 
-mkdir -p "$precommit_cache" "$plugin_cache"
-touch "$history_file"
+validate_opt_in() {
+    name=$1
+    value=$2
+    case "$value" in
+        "" | 0 | 1)
+            ;;
+        *)
+            echo "tf_image: $name must be 0 or 1" >&2
+            exit 1
+            ;;
+    esac
+}
+
+validate_opt_in TF_IMAGE_AWS_ENV "${TF_IMAGE_AWS_ENV:-}"
+validate_opt_in TF_IMAGE_AWS_CONFIG "${TF_IMAGE_AWS_CONFIG:-}"
+validate_opt_in TF_IMAGE_SSH_AGENT "${TF_IMAGE_SSH_AGENT:-}"
+
+mkdir -p \
+    "$runtime_home/.cache/pre-commit" \
+    "$runtime_home/.terraform.d/plugin-cache" \
+    "$runtime_home/.tfenv" \
+    "$runtime_home/.tgenv"
+touch "$runtime_home/.zsh_history"
+chmod 700 "$runtime_home"
 
 # Preserve the requested container command while prepending Docker options.
 set -- "$IMAGE" "$@"
 
 set -- -h "$(basename "$workspace")" "$@"
 set -- -e "WORKSPACE=$workspace" "$@"
-set -- -e "TF_PLUGIN_CACHE_DIR=/root/.terraform.d/plugin-cache" "$@"
+set -- -e "HOME=$container_home" "$@"
+set -- -e "TF_PLUGIN_CACHE_DIR=$container_home/.terraform.d/plugin-cache" "$@"
+set -- --user "$host_uid:$host_gid" "$@"
 
-if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
-    set -- -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" "$@"
-fi
-if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-    set -- -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" "$@"
-fi
-if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
-    set -- -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" "$@"
-fi
-if [ -n "${AWS_REGION:-}" ]; then
-    set -- -e "AWS_REGION=$AWS_REGION" "$@"
-fi
-if [ -n "${AWS_PROFILE:-}" ]; then
-    set -- -e "AWS_PROFILE=$AWS_PROFILE" "$@"
-fi
-if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
-    set -- -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" "$@"
-fi
-
-if [ -d "$home/.aws" ]; then
-    set -- -v "$home/.aws:/root/.aws:rw" "$@"
-fi
-
-if [ -d "$home/.ssh" ]; then
-    set -- -v "$home/.ssh:/root/.ssh:ro" "$@"
+if [ "${TF_IMAGE_AWS_ENV:-0}" = 1 ]; then
+    if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+        set -- -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" "$@"
+    fi
+    if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+        set -- -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" "$@"
+    fi
+    if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+        set -- -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" "$@"
+    fi
+    if [ -n "${AWS_REGION:-}" ]; then
+        set -- -e "AWS_REGION=$AWS_REGION" "$@"
+    fi
+    if [ -n "${AWS_PROFILE:-}" ]; then
+        set -- -e "AWS_PROFILE=$AWS_PROFILE" "$@"
+    fi
+    if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
+        set -- -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" "$@"
+    fi
 fi
 
-set -- -v "$history_file:/root/.zsh_history:rw" "$@"
-set -- -v "$plugin_cache:/root/.terraform.d/plugin-cache:rw" "$@"
-set -- -v "$precommit_cache:/root/.cache/pre-commit" "$@"
+if [ "${TF_IMAGE_AWS_CONFIG:-0}" = 1 ]; then
+    if [ ! -d "$home/.aws" ]; then
+        echo "tf_image: TF_IMAGE_AWS_CONFIG=1 requires $home/.aws" >&2
+        exit 1
+    fi
+    mkdir -p "$runtime_home/.aws"
+    set -- -v "$home/.aws:$container_home/.aws:ro" "$@"
+fi
+
+if [ "${TF_IMAGE_SSH_AGENT:-0}" = 1 ]; then
+    if [ -z "${SSH_AUTH_SOCK:-}" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+        echo "tf_image: TF_IMAGE_SSH_AGENT=1 requires a valid SSH_AUTH_SOCK" >&2
+        exit 1
+    fi
+    set -- -e "SSH_AUTH_SOCK=/tmp/tf-image-ssh-agent.sock" "$@"
+    set -- -v "$SSH_AUTH_SOCK:/tmp/tf-image-ssh-agent.sock:ro" "$@"
+fi
+
+set -- -v "$runtime_home:$container_home:rw" "$@"
 set -- -v "$workspace:/workspace" "$@"
 
 if [ -t 0 ] && [ -t 1 ]; then

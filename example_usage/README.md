@@ -33,11 +33,13 @@ directory are illustrative, not image defaults.
 This shell-sourceable file sets the image used by both launchers:
 
 ```shell
-IMAGE=so1omon/tf_image:latest
+IMAGE=so1omon/tf_image:v0.5.0
 ```
 
-`latest` follows the newest published image. Replace it with an immutable
-version tag for reproducible local or CI use.
+The example pins the non-root image release for reproducible local and CI use.
+Change the tag deliberately when adopting a new release. The moving
+`latest` channel remains available as an explicit opt-in when reproducibility is
+not required.
 
 ### `.terraform-version`
 
@@ -65,6 +67,13 @@ mounted at `/workspace`:
 ```shell
 ./tf_image
 ```
+
+The launcher maps the container process to the host UID/GID. Workspace files
+therefore remain owned by the invoking user instead of root. Writable container
+home state, Terraform providers, installed Terraform/Terragrunt versions,
+pre-commit data, and shell history are isolated under
+`~/.cache/tf-image/home`. Remove that directory to reset the cached runtime
+state.
 
 Terraform and Terragrunt are intentionally not installed during shell startup.
 Install the repository-selected versions inside the container when needed:
@@ -105,16 +114,34 @@ Run `./tg_ci.sh` without arguments to display its command reference.
 ## AWS and SSH authentication
 
 `aws-runas` is not installed in the image. When it is available on the host,
-use it to inject temporary AWS environment variables into either launcher:
+use it outside the image and explicitly allow the temporary AWS environment to
+cross the container boundary:
 
 ```shell
-aws-runas -E <profile_name> ./tf_image
-aws-runas -E <profile_name> ./tg_ci.sh terraform plan
+aws-runas -E <profile_name> env TF_IMAGE_AWS_ENV=1 ./tf_image
+aws-runas -E <profile_name> env TF_IMAGE_AWS_ENV=1 ./tg_ci.sh terraform plan
 ```
 
-The example launcher forwards populated `AWS_*` variables. It also mounts an
-existing host `~/.aws` directory read-write and an existing `~/.ssh` directory
-read-only. Those broad mounts are convenient for local development, but should
-be reviewed and narrowed before copying the launcher into shared automation.
-Prefer short-lived environment credentials and purpose-specific SSH access
-where possible.
+No AWS or SSH material is exposed by default, even when it exists on the host.
+Enable only the access required for a run:
+
+| Opt-in | Effect |
+| --- | --- |
+| `TF_IMAGE_AWS_ENV=1` | Forward only the populated supported `AWS_*` variables. |
+| `TF_IMAGE_AWS_CONFIG=1` | Mount host `~/.aws` at the container home read-only. |
+| `TF_IMAGE_SSH_AGENT=1` | Forward only the socket named by a valid `SSH_AUTH_SOCK`. |
+
+For example:
+
+```shell
+# Use shared AWS config without making it writable in the container.
+TF_IMAGE_AWS_CONFIG=1 ./tf_image aws --profile <profile_name> sts get-caller-identity
+
+# Forward an existing SSH agent without exposing ~/.ssh or private key files.
+TF_IMAGE_SSH_AGENT=1 ./tf_image git ls-remote git@github.com:owner/private-module.git
+```
+
+Each opt-in accepts only `0`, `1`, or an unset value. A requested config
+directory or agent socket must exist, otherwise the launcher fails before
+calling Docker. Prefer short-lived AWS environment credentials and an SSH agent
+over long-lived configuration or private-key mounts.

@@ -4,6 +4,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG TARGETARCH
 ARG UBUNTU_SNAPSHOT=20260715T000000Z
+ARG RUNTIME_UID=1000
+ARG RUNTIME_GID=1000
 
 ARG AWS_CLI_VERSION=2.35.23
 ARG AWS_CLI_AMD64_SHA256=db818de6dd8096d19ac275341721f96bcd70511377446d11c9149a5ed71f8b43
@@ -141,20 +143,35 @@ RUN \
         "${TGENV_SHA256}" && \
     mkdir -p /opt/tgenv && \
     tar -xzf tgenv.tar.gz -C /opt/tgenv --strip-components=1 && \
-    ln -s /opt/tgenv/bin/terragrunt /usr/local/bin/terragrunt && \
-    ln -s /opt/tgenv/bin/tgenv /usr/local/bin/tgenv && \
+    ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/terragrunt && \
+    ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/tgenv && \
     python3 -m pip install --no-cache-dir --require-hashes \
         --requirement /tmp/requirements.lock && \
     ln -s /usr/bin/fdfind /usr/local/bin/fd && \
     ln -s /usr/bin/batcat /usr/local/bin/bat && \
-    mkdir -p /workspace && \
-    echo "export HISTFILE=~/.zsh_history" >> /root/.zshrc && \
-    echo "export HISTFILE=~/.zsh_history" >> /root/.bashrc && \
-    echo "alias tf='terraform'" >> /root/.bashrc && \
-    echo "alias tg='terragrunt'" >> /root/.bashrc && \
-    echo "alias tf='terraform'" >> /root/.zshrc && \
-    echo "alias tg='terragrunt'" >> /root/.zshrc && \
-    usermod -s /bin/zsh root && \
+    groupadd --gid "${RUNTIME_GID}" terraform && \
+    useradd \
+        --create-home \
+        --gid "${RUNTIME_GID}" \
+        --shell /bin/zsh \
+        --uid "${RUNTIME_UID}" \
+        terraform && \
+    install -d \
+        -o terraform \
+        -g terraform \
+        /workspace \
+        /home/terraform/.cache/pre-commit \
+        /home/terraform/.terraform.d/plugin-cache \
+        /home/terraform/.tfenv \
+        /home/terraform/.tgenv && \
+    printf '%s\n' \
+        "alias tf='terraform'" \
+        "alias tg='terragrunt'" \
+        >> /etc/bash.bashrc && \
+    printf '%s\n' \
+        "alias tf='terraform'" \
+        "alias tg='terragrunt'" \
+        >> /etc/zsh/zshrc && \
     cd / && \
     rm -rf \
         "${tmp_dir}" \
@@ -163,6 +180,13 @@ RUN \
         /var/lib/apt/lists/* && \
     apt-get clean
 
-WORKDIR /workspace
+COPY --chmod=0755 scripts/tgenv-wrapper /usr/local/bin/tgenv-wrapper
 
+ENV HOME=/home/terraform \
+    HISTFILE=/home/terraform/.zsh_history \
+    TFENV_CONFIG_DIR=/home/terraform/.tfenv \
+    TF_PLUGIN_CACHE_DIR=/home/terraform/.terraform.d/plugin-cache
+
+USER terraform
+WORKDIR /workspace
 CMD ["/bin/zsh"]

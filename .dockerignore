@@ -3,3 +3,4 @@
 !requirements.*.lock
 !scripts/
 !scripts/download-and-verify
+!scripts/tgenv-wrapper
