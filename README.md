@@ -24,7 +24,14 @@ Terraform and Terragrunt versions are not baked into the image or installed duri
 | tgenv | 1.3.0 (`fc6b4bc`) | Workspace-selected Terragrunt versions |
 | fzf | 0.74.0 | Interactive command-line selection |
 
-Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The architecture-independent `tfenv` and `tgenv` source archives are pinned to exact commits and digests. Python tools are pinned to exact PyPI versions. `aws-runas` is intentionally host-side and is not bundled.
+Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The architecture-independent `tfenv` and `tgenv` source archives are pinned to exact commits and digests. The Ubuntu base is pinned to a multi-platform OCI digest, and APT resolves packages from one dated Canonical archive snapshot. Checkov, pre-commit, and every Python transitive dependency are installed from the matching `requirements.amd64.lock` or `requirements.arm64.lock` with required SHA-256 hashes. `aws-runas` is intentionally host-side and is not bundled.
+
+The direct Python requirements live in `requirements.in`. Regenerate each lock on its target architecture under Python 3.10 with pip-tools 7.5.2. This matters because Checkov declares additional Pyston dependencies only on x86_64:
+
+```console
+docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src python:3.10-slim sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.amd64.lock requirements.in'
+docker run --rm --platform linux/arm64 -v "$PWD:/src" -w /src python:3.10-slim sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.arm64.lock requirements.in'
+```
 
 The maintained `tgenv` `v1.3.0` tag still prints `tgenv 0.2.0` because its version command reads the first entry in an upstream changelog that was not updated for the tag. The image pins and verifies the `v1.3.0` commit rather than modifying upstream source to disguise that reporting bug.
 

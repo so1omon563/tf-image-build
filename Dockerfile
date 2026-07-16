@@ -1,8 +1,9 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG TARGETARCH
+ARG UBUNTU_SNAPSHOT=20260715T000000Z
 
 ARG AWS_CLI_VERSION=2.35.23
 ARG AWS_CLI_AMD64_SHA256=db818de6dd8096d19ac275341721f96bcd70511377446d11c9149a5ed71f8b43
@@ -32,18 +33,33 @@ ARG TGENV_VERSION=1.3.0
 ARG TGENV_COMMIT=fc6b4bc42913126ab3c0061896ba0fa920e07a84
 ARG TGENV_SHA256=744bec99b007fbb8456a67678886bb0a86e44747acf7376d096f4157c64e9935
 
-ARG PRE_COMMIT_VERSION=4.6.0
-ARG CHECKOV_VERSION=3.3.8
+COPY requirements.${TARGETARCH}.lock /tmp/requirements.lock
+COPY scripts/download-and-verify /usr/local/bin/download-and-verify
 
 # The verified downloads use a build-local temporary directory that cannot be
 # represented by a fixed Docker WORKDIR.
 # hadolint ignore=DL3003
 RUN \
     set -eux && \
+    printf '%s\n' "${UBUNTU_SNAPSHOT}" | grep -Eq '^[0-9]{8}T[0-9]{6}Z$' && \
+    snapshot_url="https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}" && \
+    printf '%s\n' \
+        "deb ${snapshot_url} jammy main restricted universe multiverse" \
+        "deb ${snapshot_url} jammy-updates main restricted universe multiverse" \
+        "deb ${snapshot_url} jammy-security main restricted universe multiverse" \
+        > /etc/apt/sources.list && \
+    # The minimal base has no CA bundle yet. APT still verifies the snapshot's
+    # signed metadata and package hashes during this CA-only bootstrap; normal
+    # TLS peer verification is restored before any other package is installed.
+    printf '%s\n' 'Acquire::https::Verify-Peer "false";' \
+        > /etc/apt/apt.conf.d/99snapshot-bootstrap && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates && \
+    rm /etc/apt/apt.conf.d/99snapshot-bootstrap && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         bat \
-        ca-certificates \
         curl \
         fd-find \
         git \
@@ -78,47 +94,40 @@ RUN \
             exit 1 \
             ;; \
     esac && \
-    download_and_verify() { \
-        local url=$1; \
-        local output=$2; \
-        local sha256=$3; \
-        curl -fsSL "${url}" -o "${output}"; \
-        printf '%s  %s\n' "${sha256}" "${output}" | sha256sum -c -; \
-    } && \
     tmp_dir=$(mktemp -d) && \
     cd "${tmp_dir}" && \
     aws_archive="awscli-exe-linux-${aws_arch}-${AWS_CLI_VERSION}.zip" && \
-    download_and_verify \
+    download-and-verify \
         "https://awscli.amazonaws.com/${aws_archive}" \
         "${aws_archive}" \
         "${aws_sha256}" && \
     unzip -q "${aws_archive}" && \
     ./aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli && \
     terraform_docs_archive="terraform-docs-v${TERRAFORM_DOCS_VERSION}-linux-${TARGETARCH}.tar.gz" && \
-    download_and_verify \
+    download-and-verify \
         "https://github.com/terraform-docs/terraform-docs/releases/download/v${TERRAFORM_DOCS_VERSION}/${terraform_docs_archive}" \
         "${terraform_docs_archive}" \
         "${terraform_docs_sha256}" && \
     tar -xzf "${terraform_docs_archive}" -C /usr/local/bin terraform-docs && \
     tflint_archive="tflint_linux_${TARGETARCH}.zip" && \
-    download_and_verify \
+    download-and-verify \
         "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/${tflint_archive}" \
         "${tflint_archive}" \
         "${tflint_sha256}" && \
     unzip -q "${tflint_archive}" -d /usr/local/bin && \
     trivy_archive="trivy_${TRIVY_VERSION}_Linux-${trivy_arch}.tar.gz" && \
-    download_and_verify \
+    download-and-verify \
         "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${trivy_archive}" \
         "${trivy_archive}" \
         "${trivy_sha256}" && \
     tar -xzf "${trivy_archive}" -C /usr/local/bin trivy && \
     fzf_archive="fzf-${FZF_VERSION}-linux_${TARGETARCH}.tar.gz" && \
-    download_and_verify \
+    download-and-verify \
         "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/${fzf_archive}" \
         "${fzf_archive}" \
         "${fzf_sha256}" && \
     tar -xzf "${fzf_archive}" -C /usr/local/bin fzf && \
-    download_and_verify \
+    download-and-verify \
         "https://codeload.github.com/tfutils/tfenv/tar.gz/${TFENV_COMMIT}" \
         tfenv.tar.gz \
         "${TFENV_SHA256}" && \
@@ -126,7 +135,7 @@ RUN \
     tar -xzf tfenv.tar.gz -C /opt/tfenv --strip-components=1 && \
     ln -s /opt/tfenv/bin/terraform /usr/local/bin/terraform && \
     ln -s /opt/tfenv/bin/tfenv /usr/local/bin/tfenv && \
-    download_and_verify \
+    download-and-verify \
         "https://codeload.github.com/tgenv/tgenv/tar.gz/${TGENV_COMMIT}" \
         tgenv.tar.gz \
         "${TGENV_SHA256}" && \
@@ -134,9 +143,8 @@ RUN \
     tar -xzf tgenv.tar.gz -C /opt/tgenv --strip-components=1 && \
     ln -s /opt/tgenv/bin/terragrunt /usr/local/bin/terragrunt && \
     ln -s /opt/tgenv/bin/tgenv /usr/local/bin/tgenv && \
-    python3 -m pip install --no-cache-dir \
-        "pre-commit==${PRE_COMMIT_VERSION}" \
-        "checkov==${CHECKOV_VERSION}" && \
+    python3 -m pip install --no-cache-dir --require-hashes \
+        --requirement /tmp/requirements.lock && \
     ln -s /usr/bin/fdfind /usr/local/bin/fd && \
     ln -s /usr/bin/batcat /usr/local/bin/bat && \
     mkdir -p /workspace && \
@@ -148,7 +156,11 @@ RUN \
     echo "alias tg='terragrunt'" >> /root/.zshrc && \
     usermod -s /bin/zsh root && \
     cd / && \
-    rm -rf "${tmp_dir}" /var/lib/apt/lists/* && \
+    rm -rf \
+        "${tmp_dir}" \
+        /tmp/requirements.lock \
+        /usr/local/bin/download-and-verify \
+        /var/lib/apt/lists/* && \
     apt-get clean
 
 WORKDIR /workspace

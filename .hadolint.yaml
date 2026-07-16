@@ -1,5 +1,6 @@
 ignored:
-  # Package pinning is tracked separately from this regression-test slice.
+  # APT resolves from a dated Canonical snapshot, and pip uses a hashed lock.
+  # Hadolint cannot infer either external constraint from the install command.
   - DL3008
   - DL3013
   # The profile entries intentionally preserve variables for login-shell use.

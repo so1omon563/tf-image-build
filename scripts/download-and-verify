@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -eu
+
+url=${1:?usage: download-and-verify URL OUTPUT SHA256}
+output=${2:?usage: download-and-verify URL OUTPUT SHA256}
+expected_sha256=${3:?usage: download-and-verify URL OUTPUT SHA256}
+
+if ! printf '%s\n' "$expected_sha256" | grep -Eq '^[0-9a-f]{64}$'; then
+    echo "invalid SHA-256 digest: $expected_sha256" >&2
+    exit 1
+fi
+
+partial_output="${output}.part"
+trap 'rm -f "$partial_output"' EXIT HUP INT TERM
+
+curl -fsSL "$url" -o "$partial_output"
+printf '%s  %s\n' "$expected_sha256" "$partial_output" | sha256sum -c -
+mv "$partial_output" "$output"
+
+trap - EXIT HUP INT TERM
