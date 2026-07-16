@@ -27,7 +27,7 @@ assert_command() {
 }
 
 for command_name in \
-    aws bat checkov curl fd fzf git jq pip3 pre-commit python3 \
+    aws bat checkov curl fd fzf git jq pip3 pre-commit python3 ssh \
     terraform-docs tfenv tfsec tflint tgenv vim zsh
 do
     assert_command "$command_name"
@@ -53,6 +53,7 @@ jq --version
 pip3 --version
 pre-commit --version
 python3 --version
+ssh -V
 terraform_docs_version=$(terraform-docs --version)
 printf '%s\n' "$terraform_docs_version"
 printf '%s\n' "$terraform_docs_version" | grep -F "$expected_docs_arch" >/dev/null
