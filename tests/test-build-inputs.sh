@@ -6,6 +6,7 @@ repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 
 grep -Eq '^FROM ubuntu:24\.04@sha256:[0-9a-f]{64}$' "$repo_root/Dockerfile"
 grep -Eq '^ARG UBUNTU_SNAPSHOT=[0-9]{8}T[0-9]{6}Z$' "$repo_root/Dockerfile"
+grep -F 'rm -f /etc/apt/sources.list.d/*' "$repo_root/Dockerfile" >/dev/null
 grep -F 'noble-security main restricted universe multiverse' "$repo_root/Dockerfile" >/dev/null
 grep -F 'COPY requirements.${TARGETARCH}.lock /tmp/requirements.lock' "$repo_root/Dockerfile" >/dev/null
 grep -F -- '--require-hashes' "$repo_root/Dockerfile" >/dev/null

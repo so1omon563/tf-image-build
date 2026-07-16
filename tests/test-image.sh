@@ -33,6 +33,8 @@ docker run --rm --platform "linux/$arch" "$image" sh -ceu '
     ! getent group ubuntu
     test ! -e /tmp/requirements.lock
     test ! -e /usr/local/bin/download-and-verify
+    test -z "$(find /etc/apt/sources.list.d -mindepth 1 -print -quit)"
+    ! grep -Ev "^[[:space:]]*(#|$|deb https://snapshot.ubuntu.com/ubuntu/)" /etc/apt/sources.list
     test -z "$(find /var/lib/apt/lists -maxdepth 1 -type f ! -name lock -print -quit)"
 '
 

@@ -45,6 +45,7 @@ RUN \
     set -eux && \
     printf '%s\n' "${UBUNTU_SNAPSHOT}" | grep -Eq '^[0-9]{8}T[0-9]{6}Z$' && \
     snapshot_url="https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}" && \
+    rm -f /etc/apt/sources.list.d/* && \
     printf '%s\n' \
         "deb ${snapshot_url} noble main restricted universe multiverse" \
         "deb ${snapshot_url} noble-updates main restricted universe multiverse" \
