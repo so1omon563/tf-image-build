@@ -1,6 +1,7 @@
 import os
 import pty
 import shutil
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -17,6 +18,11 @@ AWS_VARIABLES = (
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
+)
+TF_IMAGE_VARIABLES = (
+    "TF_IMAGE_AWS_CONFIG",
+    "TF_IMAGE_AWS_ENV",
+    "TF_IMAGE_SSH_AGENT",
 )
 
 
@@ -53,7 +59,7 @@ class LauncherTests(unittest.TestCase):
                 "DOCKER_CAPTURE": str(self.capture),
             }
         )
-        for name in AWS_VARIABLES:
+        for name in (*AWS_VARIABLES, *TF_IMAGE_VARIABLES, "SSH_AUTH_SOCK"):
             self.env.pop(name, None)
 
     def tearDown(self):
@@ -96,16 +102,21 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(returncode, 0)
         self.assertNotIn("-it", arguments)
+        self.assertIn("--user", arguments)
+        user_index = arguments.index("--user")
+        self.assertEqual(arguments[user_index + 1], f"{os.getuid()}:{os.getgid()}")
         self.assertIn(f"{os.path.realpath(self.workspace)}:/workspace", arguments)
         self.assertIn(
-            f"{self.home}/.cache/pre-commit:/root/.cache/pre-commit", arguments
-        )
-        self.assertIn(
-            f"{self.home}/.terraform.d/plugin-cache:/root/.terraform.d/plugin-cache:rw",
+            f"{self.home}/.cache/tf-image/home:/home/terraform:rw",
             arguments,
         )
-        self.assertNotIn(f"{self.home}/.ssh:/root/.ssh:ro", arguments)
-        self.assertNotIn(f"{self.home}/.aws:/root/.aws:rw", arguments)
+        self.assertIn("HOME=/home/terraform", arguments)
+        self.assertIn(
+            "TF_PLUGIN_CACHE_DIR=/home/terraform/.terraform.d/plugin-cache",
+            arguments,
+        )
+        self.assertFalse(any("/.ssh:" in argument for argument in arguments))
+        self.assertFalse(any("/.aws:" in argument for argument in arguments))
         self.assertEqual(arguments[-1], "example/image:test")
 
     def test_tty_invocation_enables_interactive_mode(self):
@@ -113,6 +124,31 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(returncode, 0)
         self.assertIn("-it", arguments)
+
+    def test_supplementary_host_groups_are_forwarded(self):
+        fake_id = self.bin_dir / "id"
+        fake_id.write_text(
+            "#!/bin/sh\n"
+            "case \"$1\" in\n"
+            "    -u) echo 1234 ;;\n"
+            "    -g) echo 5678 ;;\n"
+            "    -G) echo '5678 9012 3456' ;;\n"
+            "    *) exit 64 ;;\n"
+            "esac\n"
+        )
+        fake_id.chmod(0o755)
+
+        returncode, _, arguments = self.run_launcher()
+
+        self.assertEqual(returncode, 0)
+        user_index = arguments.index("--user")
+        self.assertEqual(arguments[user_index + 1], "1234:5678")
+        added_groups = [
+            arguments[index + 1]
+            for index, argument in enumerate(arguments)
+            if argument == "--group-add"
+        ]
+        self.assertCountEqual(added_groups, ["9012", "3456"])
 
     def test_requested_command_arguments_are_forwarded_after_the_image(self):
         returncode, _, arguments = self.run_launcher(
@@ -125,7 +161,7 @@ class LauncherTests(unittest.TestCase):
             ["example/image:test", "terraform", "fmt", "path with spaces"],
         )
 
-    def test_optional_mounts_and_only_populated_aws_variables_are_forwarded(self):
+    def test_credentials_remain_disabled_without_explicit_opt_in(self):
         (self.home / ".ssh").mkdir()
         (self.home / ".aws").mkdir()
         self.env["AWS_REGION"] = "us-west-2"
@@ -134,13 +170,69 @@ class LauncherTests(unittest.TestCase):
         returncode, _, arguments = self.run_launcher()
 
         self.assertEqual(returncode, 0)
-        self.assertIn(f"{self.home}/.ssh:/root/.ssh:ro", arguments)
-        self.assertIn(f"{self.home}/.aws:/root/.aws:rw", arguments)
+        self.assertFalse(any("/.ssh:" in argument for argument in arguments))
+        self.assertFalse(any("/.aws:" in argument for argument in arguments))
+        self.assertNotIn("AWS_REGION=us-west-2", arguments)
+        self.assertNotIn("AWS_PROFILE=profile with spaces", arguments)
+
+    def test_aws_environment_opt_in_forwards_only_populated_variables(self):
+        self.env["TF_IMAGE_AWS_ENV"] = "1"
+        self.env["AWS_REGION"] = "us-west-2"
+        self.env["AWS_PROFILE"] = "profile with spaces"
+
+        returncode, _, arguments = self.run_launcher()
+
+        self.assertEqual(returncode, 0)
         self.assertIn("AWS_REGION=us-west-2", arguments)
         self.assertIn("AWS_PROFILE=profile with spaces", arguments)
         self.assertFalse(
             any(argument.startswith("AWS_ACCESS_KEY_ID=") for argument in arguments)
         )
+
+    def test_aws_config_opt_in_mounts_read_only(self):
+        (self.home / ".aws").mkdir()
+        self.env["TF_IMAGE_AWS_CONFIG"] = "1"
+
+        returncode, _, arguments = self.run_launcher()
+
+        self.assertEqual(returncode, 0)
+        self.assertIn(
+            f"{self.home}/.aws:/home/terraform/.aws:ro",
+            arguments,
+        )
+
+    def test_ssh_agent_opt_in_mounts_only_the_agent_socket(self):
+        socket_path = self.root / "agent.sock"
+        agent_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(agent_socket.close)
+        agent_socket.bind(str(socket_path))
+        self.env["TF_IMAGE_SSH_AGENT"] = "1"
+        self.env["SSH_AUTH_SOCK"] = str(socket_path)
+
+        returncode, _, arguments = self.run_launcher()
+
+        self.assertEqual(returncode, 0)
+        self.assertIn(f"{socket_path}:/tmp/tf-image-ssh-agent.sock:ro", arguments)
+        self.assertIn("SSH_AUTH_SOCK=/tmp/tf-image-ssh-agent.sock", arguments)
+        self.assertFalse(any("/.ssh:" in argument for argument in arguments))
+
+    def test_missing_requested_credential_source_fails_before_docker(self):
+        self.env["TF_IMAGE_AWS_CONFIG"] = "1"
+
+        returncode, stderr, arguments = self.run_launcher()
+
+        self.assertNotEqual(returncode, 0)
+        self.assertIn("TF_IMAGE_AWS_CONFIG=1", stderr)
+        self.assertEqual(arguments, [])
+
+    def test_invalid_opt_in_value_fails_before_docker(self):
+        self.env["TF_IMAGE_AWS_ENV"] = "yes"
+
+        returncode, stderr, arguments = self.run_launcher()
+
+        self.assertNotEqual(returncode, 0)
+        self.assertIn("TF_IMAGE_AWS_ENV must be 0 or 1", stderr)
+        self.assertEqual(arguments, [])
 
     def test_docker_failure_is_returned_to_the_caller(self):
         returncode, _, _ = self.run_launcher(docker_exit=42)
@@ -199,7 +291,7 @@ class CiRunnerTests(unittest.TestCase):
                 "DOCKER_CAPTURE": str(self.capture),
             }
         )
-        for name in AWS_VARIABLES:
+        for name in (*AWS_VARIABLES, *TF_IMAGE_VARIABLES, "SSH_AUTH_SOCK"):
             self.env.pop(name, None)
 
     def tearDown(self):

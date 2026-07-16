@@ -1,0 +1,39 @@
+#!/bin/sh
+
+set -eu
+
+: "${HOME:?HOME must be set}"
+tgenv_root=${TGENV_DATA_DIR:-"$HOME/.tgenv"}
+libexec_link="$tgenv_root/libexec"
+changelog_link="$tgenv_root/CHANGELOG.md"
+
+mkdir -p "$tgenv_root"
+if [ -e "$libexec_link" ] && [ ! -L "$libexec_link" ]; then
+    echo "tgenv: $libexec_link exists and is not a symlink" >&2
+    exit 1
+fi
+if [ ! -L "$libexec_link" ]; then
+    ln -s /opt/tgenv/libexec "$libexec_link"
+fi
+if [ -e "$changelog_link" ] && [ ! -L "$changelog_link" ]; then
+    echo "tgenv: $changelog_link exists and is not a symlink" >&2
+    exit 1
+fi
+if [ ! -L "$changelog_link" ]; then
+    ln -s /opt/tgenv/CHANGELOG.md "$changelog_link"
+fi
+
+export TGENV_ROOT="$tgenv_root"
+
+case ${0##*/} in
+    terragrunt)
+        exec /opt/tgenv/bin/terragrunt "$@"
+        ;;
+    tgenv)
+        exec /opt/tgenv/bin/tgenv "$@"
+        ;;
+    *)
+        echo "tgenv wrapper must be invoked as tgenv or terragrunt" >&2
+        exit 1
+        ;;
+esac

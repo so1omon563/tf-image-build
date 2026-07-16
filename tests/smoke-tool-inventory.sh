@@ -54,9 +54,15 @@ if command -v tfsec >/dev/null 2>&1; then
     exit 1
 fi
 
-[ "$(id -un)" = root ]
-[ "$(getent passwd root | cut -d: -f7)" = /bin/zsh ]
+[ "$(id -un)" = terraform ]
+[ "$(id -u)" = 1000 ]
+[ "$(getent passwd terraform | cut -d: -f7)" = /bin/zsh ]
+[ "$HOME" = /home/terraform ]
 [ "$(uname -m)" = "$expected_uname" ]
+
+touch /workspace/non-root-contract
+[ "$(stat -c %u /workspace/non-root-contract)" = "$(id -u)" ]
+rm /workspace/non-root-contract
 
 assert_version "aws-cli/2.35.23" aws --version
 bat --version
@@ -100,7 +106,7 @@ fi
 terragrunt_version=$(cd "$version_workspace" && terragrunt --version)
 printf '%s\n' "$terragrunt_version" | grep -F "$(cat "$fixture_dir/.terragrunt-version")" >/dev/null
 
-if grep -E '^[[:space:]]*terraform([[:space:]]|$)' /root/.bashrc /root/.zshrc; then
+if grep -E '^[[:space:]]*terraform([[:space:]]|$)' /etc/bash.bashrc /etc/zsh/zshrc; then
     echo "shell startup must not invoke Terraform" >&2
     exit 1
 fi

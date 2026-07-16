@@ -10,7 +10,11 @@ Published version tags and `latest` are multi-platform images for Linux AMD64 an
 
 ## Runtime contract
 
-The image currently starts `/bin/zsh` as `root`. Common Ubuntu package names are exposed as the expected `fd` and `bat` commands, and retained tools are available to non-interactive commands through the image `PATH`.
+The image starts `/bin/zsh` as the unprivileged `terraform` user. The example launcher further maps the container process to the host UID/GID so files written into the workspace retain host ownership on Linux and macOS. Its writable home and tool caches live under the host's `~/.cache/tf-image`; host AWS configuration, AWS environment credentials, SSH keys, and SSH agents are not exposed by default.
+
+Credential access is explicit. The launcher can forward populated AWS environment variables, mount `~/.aws` read-only, or forward only `SSH_AUTH_SOCK`; it never mounts the host's private-key directory. See [`example_usage`](example_usage/README.md) for the opt-in variables and trust boundary.
+
+Common Ubuntu package names are exposed as the expected `fd` and `bat` commands, and retained tools are available to non-interactive commands through the image `PATH`.
 
 Terraform and Terragrunt versions are not baked into the image or installed during shell startup. Add `.terraform-version` and `.terragrunt-version` files to a workspace, then run `tfenv install` and `tgenv install` explicitly.
 
