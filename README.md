@@ -34,13 +34,13 @@ Copy-ready examples for interactive development and non-interactive automation a
 | tgenv | 1.3.0 (`fc6b4bc`) | Workspace-selected Terragrunt versions |
 | fzf | 0.74.0 | Interactive command-line selection |
 
-Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The architecture-independent `tfenv` and `tgenv` source archives are pinned to exact commits and digests. The Ubuntu base is pinned to a multi-platform OCI digest, and APT resolves packages from one dated Canonical archive snapshot. Checkov, pre-commit, and every Python transitive dependency are installed from the matching `requirements.amd64.lock` or `requirements.arm64.lock` with required SHA-256 hashes. `aws-runas` is intentionally host-side and is not bundled.
+Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The architecture-independent `tfenv` and `tgenv` source archives are pinned to exact commits and digests. The Ubuntu 24.04 LTS base is pinned to a multi-platform OCI digest, and APT resolves Noble packages from one dated Canonical archive snapshot. Checkov, pre-commit, and every Python transitive dependency are installed into an isolated Python 3.12 virtual environment from the matching `requirements.amd64.lock` or `requirements.arm64.lock` with required SHA-256 hashes. `aws-runas` is intentionally host-side and is not bundled.
 
-The direct Python requirements live in `requirements.in`. Regenerate each lock on its target architecture under Python 3.10 with pip-tools 7.5.2. This matters because Checkov declares additional Pyston dependencies only on x86_64:
+The direct Python requirements live in `requirements.in`. Regenerate each lock on its target architecture under Python 3.12 with pip-tools 7.5.2. This matters because dependency markers can produce architecture-specific graphs:
 
 ```console
-docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src python:3.10-slim sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.amd64.lock requirements.in'
-docker run --rm --platform linux/arm64 -v "$PWD:/src" -w /src python:3.10-slim sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.arm64.lock requirements.in'
+docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.amd64.lock requirements.in'
+docker run --rm --platform linux/arm64 -v "$PWD:/src" -w /src python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.arm64.lock requirements.in'
 ```
 
 The maintained `tgenv` `v1.3.0` tag still prints `tgenv 0.2.0` because its version command reads the first entry in an upstream changelog that was not updated for the tag. The image pins and verifies the `v1.3.0` commit rather than modifying upstream source to disguise that reporting bug.
@@ -59,4 +59,4 @@ Unlike `tfsec`, Trivy exits with code 0 on findings by default. Keep `--exit-cod
 
 ## Build and release
 
-Pull requests and updates to `main` run static checks, then build and exercise the complete runtime contract on native Linux AMD64 and Linux ARM64 GitHub-hosted runners. Release candidates must pass the same per-architecture tests before GitHub and Docker Hub publication. The trusted publisher pushes both variants under one manifest for the immutable version tag and the moving `latest` alias.
+Pull requests and updates to `main` run static checks, then build, exercise, and vulnerability-scan the complete runtime contract on native Linux AMD64 and Linux ARM64 GitHub-hosted runners. A weekly scheduled run performs clean builds with a fresh base pull but never tags or publishes an image. Release candidates must pass the same per-architecture tests and security gate from clean builds before GitHub and Docker Hub publication. The trusted publisher pushes both variants under one manifest for the immutable version tag and the moving `latest` alias, with explicit SBOM and max-level provenance attestations. See [`SECURITY.md`](SECURITY.md) for the base lifecycle, scan policy, exception rules, and retained evidence.

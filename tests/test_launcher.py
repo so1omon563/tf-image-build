@@ -202,6 +202,9 @@ class LauncherTests(unittest.TestCase):
         )
 
     def test_ssh_agent_opt_in_mounts_only_the_agent_socket(self):
+        fake_uname = self.bin_dir / "uname"
+        fake_uname.write_text("#!/bin/sh\nprintf 'Darwin\\n'\n")
+        fake_uname.chmod(0o755)
         socket_path = self.root / "agent.sock"
         agent_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.addCleanup(agent_socket.close)
@@ -214,7 +217,34 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(returncode, 0)
         self.assertIn(f"{socket_path}:/tmp/tf-image-ssh-agent.sock:ro", arguments)
         self.assertIn("SSH_AUTH_SOCK=/tmp/tf-image-ssh-agent.sock", arguments)
+        added_groups = [
+            arguments[index + 1]
+            for index, argument in enumerate(arguments)
+            if argument == "--group-add"
+        ]
+        self.assertIn("0", added_groups)
         self.assertFalse(any("/.ssh:" in argument for argument in arguments))
+
+    def test_linux_ssh_agent_does_not_add_root_group(self):
+        fake_uname = self.bin_dir / "uname"
+        fake_uname.write_text("#!/bin/sh\nprintf 'Linux\\n'\n")
+        fake_uname.chmod(0o755)
+        socket_path = self.root / "agent.sock"
+        agent_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(agent_socket.close)
+        agent_socket.bind(str(socket_path))
+        self.env["TF_IMAGE_SSH_AGENT"] = "1"
+        self.env["SSH_AUTH_SOCK"] = str(socket_path)
+
+        returncode, _, arguments = self.run_launcher()
+
+        self.assertEqual(returncode, 0)
+        added_groups = [
+            arguments[index + 1]
+            for index, argument in enumerate(arguments)
+            if argument == "--group-add"
+        ]
+        self.assertNotIn("0", added_groups)
 
     def test_missing_requested_credential_source_fails_before_docker(self):
         self.env["TF_IMAGE_AWS_CONFIG"] = "1"

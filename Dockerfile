@@ -1,4 +1,4 @@
-FROM ubuntu:22.04@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
+FROM ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -46,9 +46,9 @@ RUN \
     printf '%s\n' "${UBUNTU_SNAPSHOT}" | grep -Eq '^[0-9]{8}T[0-9]{6}Z$' && \
     snapshot_url="https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}" && \
     printf '%s\n' \
-        "deb ${snapshot_url} jammy main restricted universe multiverse" \
-        "deb ${snapshot_url} jammy-updates main restricted universe multiverse" \
-        "deb ${snapshot_url} jammy-security main restricted universe multiverse" \
+        "deb ${snapshot_url} noble main restricted universe multiverse" \
+        "deb ${snapshot_url} noble-updates main restricted universe multiverse" \
+        "deb ${snapshot_url} noble-security main restricted universe multiverse" \
         > /etc/apt/sources.list && \
     # The minimal base has no CA bundle yet. APT still verifies the snapshot's
     # signed metadata and package hashes during this CA-only bootstrap; normal
@@ -68,7 +68,7 @@ RUN \
         jq \
         libcap2-bin \
         openssh-client \
-        python3-pip \
+        python3-venv \
         unzip \
         vim \
         zsh && \
@@ -145,10 +145,14 @@ RUN \
     tar -xzf tgenv.tar.gz -C /opt/tgenv --strip-components=1 && \
     ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/terragrunt && \
     ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/tgenv && \
-    python3 -m pip install --no-cache-dir --require-hashes \
+    python3 -m venv /opt/python && \
+    /opt/python/bin/python -m pip install --no-cache-dir --require-hashes \
         --requirement /tmp/requirements.lock && \
     ln -s /usr/bin/fdfind /usr/local/bin/fd && \
     ln -s /usr/bin/batcat /usr/local/bin/bat && \
+    # Ubuntu 24.04 reserves UID/GID 1000 for its unused default account.
+    # Remove it before preserving the image's established terraform identity.
+    userdel --remove ubuntu && \
     groupadd --gid "${RUNTIME_GID}" terraform && \
     useradd \
         --create-home \
@@ -184,6 +188,7 @@ COPY --chmod=0755 scripts/tgenv-wrapper /usr/local/bin/tgenv-wrapper
 
 ENV HOME=/home/terraform \
     HISTFILE=/home/terraform/.zsh_history \
+    PATH=/opt/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     TFENV_CONFIG_DIR=/home/terraform/.tfenv \
     TF_PLUGIN_CACHE_DIR=/home/terraform/.terraform.d/plugin-cache
 

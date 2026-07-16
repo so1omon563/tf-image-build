@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "17 13 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -70,6 +72,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/${{ matrix.arch }}
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' }}
           load: true
           tags: tf-image-build:ci-${{ matrix.arch }}
           cache-from: type=gha,scope=image-ci-${{ matrix.arch }}
@@ -77,3 +81,15 @@ jobs:
 
       - name: Test image contract
         run: tests/test-image.sh tf-image-build:ci-${{ matrix.arch }} ${{ matrix.arch }}
+
+      - name: Scan OS and application packages
+        run: scripts/scan-image tf-image-build:ci-${{ matrix.arch }} trivy-image-ci-${{ matrix.arch }}.json
+
+      - name: Retain vulnerability report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: trivy-image-ci-${{ matrix.arch }}
+          path: trivy-image-ci-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 30

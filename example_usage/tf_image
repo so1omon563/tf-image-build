@@ -96,6 +96,11 @@ if [ "${TF_IMAGE_SSH_AGENT:-0}" = 1 ]; then
         echo "tf_image: TF_IMAGE_SSH_AGENT=1 requires a valid SSH_AUTH_SOCK" >&2
         exit 1
     fi
+    # Docker Desktop presents bind-mounted Unix sockets as root:root 0660.
+    # Grant its container-side group only for this explicit macOS opt-in.
+    if [ "$(uname -s)" = Darwin ]; then
+        set -- --group-add 0 "$@"
+    fi
     set -- -e "SSH_AUTH_SOCK=/tmp/tf-image-ssh-agent.sock" "$@"
     set -- -v "$SSH_AUTH_SOCK:/tmp/tf-image-ssh-agent.sock:ro" "$@"
 fi

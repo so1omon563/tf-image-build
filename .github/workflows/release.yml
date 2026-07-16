@@ -55,6 +55,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/${{ matrix.arch }}
+          pull: true
+          no-cache: true
           load: true
           tags: tf-image-build:release-candidate-${{ matrix.arch }}
           cache-from: type=gha,scope=release-validation-${{ matrix.arch }}
@@ -62,6 +64,18 @@ jobs:
 
       - name: Test release candidate
         run: tests/test-image.sh tf-image-build:release-candidate-${{ matrix.arch }} ${{ matrix.arch }}
+
+      - name: Scan OS and application packages
+        run: scripts/scan-image tf-image-build:release-candidate-${{ matrix.arch }} trivy-release-${{ matrix.arch }}.json
+
+      - name: Retain vulnerability report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: trivy-release-${{ matrix.arch }}
+          path: trivy-release-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 90
 
   # Failed-job retries must reuse the completed bump and validated candidate.
   publish-release:
@@ -124,6 +138,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          sbom: true
+          provenance: mode=max
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_HUB_USERNAME }}/tf_image:buildcache

@@ -1,0 +1,54 @@
+#!/bin/sh
+
+set -eu
+
+if [ "$#" -ne 2 ]; then
+    echo "usage: scan-image IMAGE REPORT.json" >&2
+    exit 64
+fi
+
+image=$1
+report=$2
+scanner='aquasec/trivy@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e'
+repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
+workdir=$(mktemp -d)
+trap 'rm -rf "$workdir"' EXIT HUP INT TERM
+
+cp "$repo_root/security/trivyignore.yaml" "$workdir/trivyignore.yaml"
+docker image save --output "$workdir/image.tar" "$image"
+
+docker run --rm \
+    --volume "$workdir:/scan:ro" \
+    "$scanner" \
+    image \
+    --input /scan/image.tar \
+    --scanners vuln \
+    --severity HIGH,CRITICAL \
+    --ignorefile /scan/trivyignore.yaml \
+    --skip-version-check \
+    --format json > "$workdir/report.json"
+
+mkdir -p "$(dirname "$report")"
+cp "$workdir/report.json" "$report"
+
+blocking=$(jq '[
+    .Results[]?.Vulnerabilities[]?
+    | select(.Severity == "CRITICAL")
+    | select((.FixedVersion // "") != "")
+] | length' "$report")
+
+if [ "$blocking" -ne 0 ]; then
+    echo "security gate: $blocking fixed CRITICAL vulnerabilities found" >&2
+    jq -r '
+        .Results[]?.Vulnerabilities[]?
+        | select(.Severity == "CRITICAL")
+        | select((.FixedVersion // "") != "")
+        | "\(.VulnerabilityID) \(.PkgName) \(.InstalledVersion) -> \(.FixedVersion)"
+    ' "$report" >&2
+    exit 1
+fi
+
+high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$report")
+critical=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$report")
+printf 'security-report=%s high=%s critical=%s blocking-critical=%s\n' \
+    "$report" "$high" "$critical" "$blocking"
