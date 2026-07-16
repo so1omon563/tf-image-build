@@ -58,6 +58,11 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
         self.assertIn('cron: "23 13 * * 3"', self.dependency_audit)
         self.assertIn("issues: write", self.dependency_audit)
         self.assertIn("tools/dependency_audit.py", self.dependency_audit)
+        self.assertIn("|| audit_status=$?", self.dependency_audit)
+        self.assertLess(
+            self.dependency_audit.index('cat dependency-audit.md'),
+            self.dependency_audit.index('exit "$audit_status"'),
+        )
         self.assertIn(
             "Dependency audit: manual pins need review",
             self.dependency_audit,

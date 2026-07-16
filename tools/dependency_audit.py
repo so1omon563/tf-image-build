@@ -45,7 +45,6 @@ GITHUB_RELEASES = {
     "TFLint": ("TFLINT_VERSION", "terraform-linters/tflint"),
     "Trivy": ("TRIVY_VERSION", "aquasecurity/trivy"),
     "fzf": ("FZF_VERSION", "junegunn/fzf"),
-    "tfenv": ("TFENV_VERSION", "tfutils/tfenv"),
     "tgenv": ("TGENV_VERSION", "tgenv/tgenv"),
 }
 
@@ -101,6 +100,16 @@ def build_checks(root: Path = ROOT) -> list[Check]:
                 f"https://github.com/{repository}/releases/latest",
             )
         )
+
+    # tfenv's latest GitHub Release is stale; its maintained versions are tags.
+    checks.append(
+        Check(
+            "tfenv",
+            docker_args["TFENV_VERSION"],
+            "github-tag:tfutils/tfenv",
+            "https://github.com/tfutils/tfenv/tags",
+        )
+    )
 
     checks.append(
         Check(

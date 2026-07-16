@@ -26,10 +26,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          audit_status=0
           python3 tools/dependency_audit.py \
             --output dependency-audit.md \
-            --github-output "$GITHUB_OUTPUT"
+            --github-output "$GITHUB_OUTPUT" || audit_status=$?
           cat dependency-audit.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$audit_status"
 
       - name: Update dependency tracking issue
         env:
