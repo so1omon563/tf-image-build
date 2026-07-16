@@ -26,9 +26,20 @@ assert_command() {
     fi
 }
 
+assert_version() {
+    expected=$1
+    shift
+    version_output=$("$@" 2>&1)
+    printf '%s\n' "$version_output"
+    if ! printf '%s\n' "$version_output" | grep -F "$expected" >/dev/null; then
+        echo "unexpected version from $*: expected output containing $expected" >&2
+        exit 1
+    fi
+}
+
 for command_name in \
     aws bat checkov curl fd fzf git jq pip3 pre-commit python3 ssh \
-    terraform-docs tfenv tfsec tflint tgenv vim zsh
+    terraform-docs tfenv tflint tgenv trivy vim zsh
 do
     assert_command "$command_name"
 done
@@ -38,29 +49,35 @@ if command -v aws-runas >/dev/null 2>&1; then
     exit 1
 fi
 
+if command -v tfsec >/dev/null 2>&1; then
+    echo "tfsec has been replaced by trivy and must not be present in the image" >&2
+    exit 1
+fi
+
 [ "$(id -un)" = root ]
 [ "$(getent passwd root | cut -d: -f7)" = /bin/zsh ]
 [ "$(uname -m)" = "$expected_uname" ]
 
-aws --version
+assert_version "aws-cli/2.35.23" aws --version
 bat --version
-checkov --version
+assert_version "3.3.8" checkov --version
 curl --version
 fd --version
-fzf --version
+assert_version "0.74.0" fzf --version
 git --version
 jq --version
 pip3 --version
-pre-commit --version
+assert_version "pre-commit 4.6.0" pre-commit --version
 python3 --version
 ssh -V
-terraform_docs_version=$(terraform-docs --version)
+terraform_docs_version=$(terraform-docs --version 2>&1)
 printf '%s\n' "$terraform_docs_version"
+printf '%s\n' "$terraform_docs_version" | grep -F "v0.24.0" >/dev/null
 printf '%s\n' "$terraform_docs_version" | grep -F "$expected_docs_arch" >/dev/null
-tfenv --version
-tfsec --version
-tflint --version
+assert_version "tfenv 3.2.2" tfenv --version
+assert_version "TFLint version 0.63.1" tflint --version
 tgenv --version
+assert_version "Version: 0.70.0" trivy --version
 vim --version >/dev/null
 zsh --version
 
