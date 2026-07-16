@@ -14,6 +14,8 @@ The image currently starts `/bin/zsh` as `root`. Common Ubuntu package names are
 
 Terraform and Terragrunt versions are not baked into the image or installed during shell startup. Add `.terraform-version` and `.terragrunt-version` files to a workspace, then run `tfenv install` and `tgenv install` explicitly.
 
+Copy-ready examples for interactive development and non-interactive automation are documented in [`example_usage`](example_usage/README.md).
+
 ## Bundled toolchain
 
 | Tool | Version | Purpose |

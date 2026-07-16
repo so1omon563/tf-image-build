@@ -28,7 +28,7 @@ jobs:
           args: -color
 
       - name: Lint shell scripts
-        run: shellcheck --severity=warning example_usage/tf_image scripts/* tests/*.sh
+        run: shellcheck --severity=warning example_usage/tf_image example_usage/tg_ci.sh scripts/* tests/*.sh
 
       - name: Test Python contracts
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v

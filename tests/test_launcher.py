@@ -1,5 +1,6 @@
 import os
 import pty
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCHER = ROOT / "example_usage" / "tf_image"
+CI_RUNNER = ROOT / "example_usage" / "tg_ci.sh"
 AWS_VARIABLES = (
     "AWS_DEFAULT_REGION",
     "AWS_PROFILE",
@@ -57,7 +59,7 @@ class LauncherTests(unittest.TestCase):
     def tearDown(self):
         self.tempdir.cleanup()
 
-    def run_launcher(self, *, tty=False, docker_exit=0):
+    def run_launcher(self, *command, tty=False, docker_exit=0):
         self.capture.unlink(missing_ok=True)
         env = self.env | {"DOCKER_EXIT": str(docker_exit)}
 
@@ -65,14 +67,14 @@ class LauncherTests(unittest.TestCase):
             pid, terminal = pty.fork()
             if pid == 0:
                 os.chdir(self.workspace)
-                os.execve(LAUNCHER, [str(LAUNCHER)], env)
+                os.execve(LAUNCHER, [str(LAUNCHER), *command], env)
             _, status = os.waitpid(pid, 0)
             os.close(terminal)
             returncode = os.waitstatus_to_exitcode(status)
             stderr = ""
         else:
             result = subprocess.run(
-                [LAUNCHER],
+                [LAUNCHER, *command],
                 cwd=self.workspace,
                 env=env,
                 stdin=subprocess.DEVNULL,
@@ -111,6 +113,17 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(returncode, 0)
         self.assertIn("-it", arguments)
+
+    def test_requested_command_arguments_are_forwarded_after_the_image(self):
+        returncode, _, arguments = self.run_launcher(
+            "terraform", "fmt", "path with spaces"
+        )
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual(
+            arguments[-4:],
+            ["example/image:test", "terraform", "fmt", "path with spaces"],
+        )
 
     def test_optional_mounts_and_only_populated_aws_variables_are_forwarded(self):
         (self.home / ".ssh").mkdir()
@@ -151,6 +164,81 @@ class LauncherTests(unittest.TestCase):
         self.assertNotEqual(returncode, 0)
         self.assertIn("IMAGE is not set", stderr)
         self.assertEqual(arguments, [])
+
+
+class CiRunnerTests(unittest.TestCase):
+    def setUp(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.workspace = Path(self.tempdir.name)
+        self.home = self.workspace / "home"
+        self.bin_dir = self.workspace / "bin"
+        self.capture = self.workspace / "docker-arguments"
+        self.home.mkdir()
+        self.bin_dir.mkdir()
+        (self.workspace / ".image").write_text("IMAGE=example/image:test\n")
+
+        launcher = self.workspace / "tf_image"
+        shutil.copy2(LAUNCHER, launcher)
+
+        fake_docker = self.bin_dir / "docker"
+        fake_docker.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os\n"
+            "import sys\n"
+            "with open(os.environ['DOCKER_CAPTURE'], 'wb') as stream:\n"
+            "    stream.write(b'\\0'.join(arg.encode() for arg in sys.argv[1:]))\n"
+            "    stream.write(b'\\0')\n"
+        )
+        fake_docker.chmod(0o755)
+
+        self.env = os.environ.copy()
+        self.env.update(
+            {
+                "HOME": str(self.home),
+                "PATH": f"{self.bin_dir}{os.pathsep}{self.env['PATH']}",
+                "DOCKER_CAPTURE": str(self.capture),
+            }
+        )
+        for name in AWS_VARIABLES:
+            self.env.pop(name, None)
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def run_ci(self, *arguments):
+        self.capture.unlink(missing_ok=True)
+        return subprocess.run(
+            [CI_RUNNER, *arguments],
+            cwd=self.workspace,
+            env=self.env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+    def test_requires_a_command(self):
+        result = self.run_ci()
+
+        self.assertEqual(result.returncode, 64)
+        self.assertIn("Usage: ./tg_ci.sh", result.stderr)
+        self.assertFalse(self.capture.exists())
+
+    def test_delegates_command_to_the_existing_launcher(self):
+        result = self.run_ci("terraform", "fmt", "-check", "path with spaces")
+
+        self.assertEqual(result.returncode, 0)
+        arguments = self.capture.read_bytes().rstrip(b"\0").decode().split("\0")
+        self.assertNotIn("-it", arguments)
+        image_index = arguments.index("example/image:test")
+        self.assertEqual(arguments[image_index + 1 : image_index + 3], ["sh", "-ceu"])
+        self.assertIn("tfenv install", arguments[image_index + 3])
+        self.assertIn("tgenv install", arguments[image_index + 3])
+        self.assertEqual(
+            arguments[-5:],
+            ["sh", "terraform", "fmt", "-check", "path with spaces"],
+        )
 
 
 if __name__ == "__main__":
