@@ -9,7 +9,10 @@ Dependabot checks the Docker base and GitHub Actions weekly. Minor and patch
 Action updates may share one pull request; major updates remain separate. The
 Docker queue is limited to one open pull request, and both ecosystems use a
 seven-day cooldown for routine version updates. Dependabot security updates are
-not delayed by that cooldown.
+not delayed by that cooldown. Docker updates are restricted to digest refreshes
+for the supported `ubuntu:24.04` tag. A change to a newer Ubuntu release is a
+base-image lifecycle decision and must be prepared manually with the review and
+validation required by `SECURITY.md`; it is not a routine dependency bump.
 
 GitHub does not update container references embedded in workflow shell commands,
 the `docker://` Action reference, or the version and checksum pairs in the
