@@ -1,45 +1,71 @@
 #!/bin/sh
-source .image
 
-[ ! -e $HOME/.terraform.d/plugin-cache ] && mkdir -p $HOME/.terraform.d/plugin-cache
-[ ! -e $HOME/.cache/pre-commit ] && mkdir -p $HOME/.cache/pre-commit
-[ ! -e $HOME/.zsh_history ] && touch $HOME/.zsh_history
+set -eu
 
-
-
-
-# Checks to see if AWS_* environment variables are set and only exports them if they are there.
-if [ -z $AWS_DEFAULT_REGION ] && [ -z $AWS_REGION ] && [ -z $AWS_ACCESS_KEY_ID ] && [ -z $AWS_SECRET_ACCESS_KEY ] && [ -z $AWS_SESSION_TOKEN ]; then
-
-    docker run --rm -it \
-    -v $PWD:/workspace \
-    -v $HOME/.cache/pre-commit:/root/.cache/pre-commit \
-    -v $HOME/.terraform.d/plugin-cache:/root/.terraform.d/plugin-cache:rw \
-    -v $HOME/.ssh:/root/.ssh:ro \
-    -v $HOME/.aws:/root/.aws:rw \
-    -v $HOME/.zsh_history:/root/.zsh_history:rw \
-    -e TF_PLUGIN_CACHE_DIR="/root/.terraform.d/plugin-cache" \
-    -e WORKSPACE=$PWD \
-    -h $(basename $PWD) \
-    $IMAGE
-
-else
-
-    docker run --rm -it \
-    -v $PWD:/workspace \
-    -v $HOME/.cache/pre-commit:/root/.cache/pre-commit \
-    -v $HOME/.terraform.d/plugin-cache:/root/.terraform.d/plugin-cache:rw \
-    -v $HOME/.ssh:/root/.ssh:ro \
-    -v $HOME/.aws:/root/.aws:rw \
-    -v $HOME/.zsh_history:/root/.zsh_history:rw \
-    -e TF_PLUGIN_CACHE_DIR="/root/.terraform.d/plugin-cache" \
-    -e WORKSPACE=$PWD \
-    -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION \
-    -e AWS_REGION=$AWS_REGION \
-    -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-    -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-    -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN \
-    -h $(basename $PWD) \
-    $IMAGE
-
+if [ ! -r .image ]; then
+    echo "tf_image: .image is missing or unreadable" >&2
+    exit 1
 fi
+
+. ./.image
+
+if [ -z "${IMAGE:-}" ]; then
+    echo "tf_image: IMAGE is not set in .image" >&2
+    exit 1
+fi
+
+workspace=$(pwd -P)
+home=${HOME:?HOME must be set}
+precommit_cache="$home/.cache/pre-commit"
+plugin_cache="$home/.terraform.d/plugin-cache"
+history_file="$home/.zsh_history"
+
+mkdir -p "$precommit_cache" "$plugin_cache"
+touch "$history_file"
+
+set -- run --rm
+
+if [ -t 0 ] && [ -t 1 ]; then
+    set -- "$@" -it
+fi
+
+set -- "$@" \
+    -v "$workspace:/workspace" \
+    -v "$precommit_cache:/root/.cache/pre-commit" \
+    -v "$plugin_cache:/root/.terraform.d/plugin-cache:rw" \
+    -v "$history_file:/root/.zsh_history:rw"
+
+if [ -d "$home/.ssh" ]; then
+    set -- "$@" -v "$home/.ssh:/root/.ssh:ro"
+fi
+
+if [ -d "$home/.aws" ]; then
+    set -- "$@" -v "$home/.aws:/root/.aws:rw"
+fi
+
+if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
+    set -- "$@" -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
+fi
+if [ -n "${AWS_PROFILE:-}" ]; then
+    set -- "$@" -e "AWS_PROFILE=$AWS_PROFILE"
+fi
+if [ -n "${AWS_REGION:-}" ]; then
+    set -- "$@" -e "AWS_REGION=$AWS_REGION"
+fi
+if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+    set -- "$@" -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
+fi
+if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+    set -- "$@" -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+fi
+if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+    set -- "$@" -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN"
+fi
+
+set -- "$@" \
+    -e "TF_PLUGIN_CACHE_DIR=/root/.terraform.d/plugin-cache" \
+    -e "WORKSPACE=$workspace" \
+    -h "$(basename "$workspace")" \
+    "$IMAGE"
+
+exec docker "$@"

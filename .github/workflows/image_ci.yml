@@ -15,8 +15,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Lint workflows
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
+      - name: Lint shell scripts
+        run: shellcheck --severity=warning example_usage/tf_image tests/*.sh
+
+      - name: Test launcher argument construction
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Lint Dockerfile
+        run: |
+          docker run --rm -i \
+            --volume "$PWD:/work:ro" \
+            hadolint/hadolint:v2.14.0 \
+            hadolint --config /work/.hadolint.yaml - < Dockerfile
+
   build:
     name: Build and smoke test (linux/amd64)
+    needs: static
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -36,10 +62,5 @@ jobs:
           cache-from: type=gha,scope=image-ci-amd64
           cache-to: type=gha,mode=max,scope=image-ci-amd64,ignore-error=true
 
-      - name: Smoke test tool inventory
-        run: |
-          docker run --rm \
-            --platform linux/amd64 \
-            --volume "$PWD/tests:/tests:ro" \
-            tf-image-build:ci-amd64 \
-            /tests/smoke-tool-inventory.sh
+      - name: Test image contract
+        run: tests/test-image.sh tf-image-build:ci-amd64 amd64

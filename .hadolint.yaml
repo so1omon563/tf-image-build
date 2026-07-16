@@ -1,0 +1,7 @@
+ignored:
+  # Package pinning is tracked separately from this regression-test slice.
+  - DL3008
+  - DL3013
+  # The profile entries intentionally preserve variables for login-shell use.
+  - SC2016
+failure-threshold: warning
