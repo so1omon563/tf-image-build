@@ -34,11 +34,11 @@ The retired `tfsec` binary has been replaced by its maintained successor, Trivy.
 
 | tfsec | Trivy |
 | --- | --- |
-| `tfsec <dir>` | `trivy config <dir>` |
-| `tfsec <dir> --tf-vars-file <vars.tf>` | `trivy config --tf-vars <vars.tf> <dir>` |
-| `tfsec <dir> --format json` | `trivy config --format json <dir>` |
+| `tfsec <dir>` | `trivy config --exit-code 1 <dir>` |
+| `tfsec <dir> --tf-vars-file <vars.tf>` | `trivy config --exit-code 1 --tf-vars <vars.tf> <dir>` |
+| `tfsec <dir> --format json` | `trivy config --exit-code 1 --format json <dir>` |
 
-Trivy refreshes its misconfiguration checks from its registry when available and falls back to embedded checks offline. Rule IDs, defaults, configuration, ignore behavior, and supported report formats can differ from `tfsec`, so existing CI suppressions and expected findings should be reviewed during migration. Checkov remains because existing repositories may depend on its separate policy IDs, custom policies, and pre-commit hooks; it is not a `tfsec` compatibility shim.
+Unlike `tfsec`, Trivy exits with code 0 on findings by default. Keep `--exit-code 1` in CI migrations so detected misconfigurations continue to fail the job. Trivy refreshes its misconfiguration checks from its registry when available and falls back to embedded checks offline. Rule IDs, defaults, configuration, ignore behavior, and supported report formats can differ from `tfsec`, so existing CI suppressions and expected findings should be reviewed during migration. Checkov remains because existing repositories may depend on its separate policy IDs, custom policies, and pre-commit hooks; it is not a `tfsec` compatibility shim.
 
 ## Build and release
 
