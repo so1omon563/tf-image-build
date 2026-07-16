@@ -63,6 +63,7 @@ Pull requests and updates to `main` run static checks, then build, exercise, and
 
 Dependabot checks the Docker base and GitHub Actions weekly. A separate audit
 checks release binaries, source archives, direct Python requirements, the
-`docker://` Action reference, and Ubuntu snapshot freshness. See
+workflow-only actionlint and Hadolint container references, and Ubuntu snapshot
+freshness. See
 [`DEPENDENCY_UPDATES.md`](DEPENDENCY_UPDATES.md) for triage, grouping, evidence,
 and failed-update requirements.

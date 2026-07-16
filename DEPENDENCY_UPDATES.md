@@ -11,12 +11,13 @@ Docker queue is limited to one open pull request, and both ecosystems use a
 seven-day cooldown for routine version updates. Dependabot security updates are
 not delayed by that cooldown.
 
-GitHub does not update the `docker://` Action reference or the version and
-checksum pairs in the Dockerfile. The Wednesday dependency audit therefore
-checks:
+GitHub does not update container references embedded in workflow shell commands,
+the `docker://` Action reference, or the version and checksum pairs in the
+Dockerfile. The Wednesday dependency audit therefore checks:
 
 - the AWS CLI and every downloaded release pinned in `Dockerfile`;
-- the `docker://rhysd/actionlint` workflow reference;
+- the workflow-only `docker://rhysd/actionlint` and Hadolint container
+  references;
 - the direct Python requirements in `requirements.in`; and
 - whether the Ubuntu archive snapshot is more than 14 days old.
 

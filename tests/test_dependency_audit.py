@@ -18,6 +18,11 @@ class DependencyAuditTests(unittest.TestCase):
         self.assertEqual(checks["tfenv"].current, "3.2.2")
         self.assertEqual(checks["tfenv"].source, "github-tag:tfutils/tfenv")
         self.assertEqual(checks["actionlint"].current, "1.7.12")
+        self.assertEqual(checks["Hadolint"].current, "2.14.0")
+        self.assertEqual(
+            checks["Hadolint"].source,
+            "github-release:hadolint/hadolint",
+        )
         self.assertEqual(checks["Checkov"].current, "3.3.8")
         self.assertEqual(checks["pre-commit"].current, "4.6.0")
 

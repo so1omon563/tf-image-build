@@ -79,6 +79,13 @@ def read_actionlint_version(path: Path) -> str:
     return match.group(1)
 
 
+def read_hadolint_version(path: Path) -> str:
+    match = re.search(r"hadolint/hadolint:v?([^\s]+)", path.read_text())
+    if not match:
+        raise ValueError(f"hadolint container reference not found in {path}")
+    return match.group(1)
+
+
 def build_checks(root: Path = ROOT) -> list[Check]:
     docker_args = read_docker_args(root / "Dockerfile")
     requirements = read_requirements(root / "requirements.in")
@@ -117,6 +124,15 @@ def build_checks(root: Path = ROOT) -> list[Check]:
             read_actionlint_version(root / ".github/workflows/image_ci.yml"),
             "github-release:rhysd/actionlint",
             "https://github.com/rhysd/actionlint/releases/latest",
+        )
+    )
+
+    checks.append(
+        Check(
+            "Hadolint",
+            read_hadolint_version(root / ".github/workflows/image_ci.yml"),
+            "github-release:hadolint/hadolint",
+            "https://github.com/hadolint/hadolint/releases/latest",
         )
     )
 
