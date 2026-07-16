@@ -35,6 +35,9 @@ ARG TGENV_SHA256=744bec99b007fbb8456a67678886bb0a86e44747acf7376d096f4157c64e993
 ARG PRE_COMMIT_VERSION=4.6.0
 ARG CHECKOV_VERSION=3.3.8
 
+# The verified downloads use a build-local temporary directory that cannot be
+# represented by a fixed Docker WORKDIR.
+# hadolint ignore=DL3003
 RUN \
     set -eux && \
     apt-get update && \
