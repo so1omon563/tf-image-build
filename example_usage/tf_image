@@ -55,6 +55,12 @@ set -- -e "HOME=$container_home" "$@"
 set -- -e "TF_PLUGIN_CACHE_DIR=$container_home/.terraform.d/plugin-cache" "$@"
 set -- --user "$host_uid:$host_gid" "$@"
 
+for group_gid in $(id -G); do
+    if [ "$group_gid" != "$host_gid" ]; then
+        set -- --group-add "$group_gid" "$@"
+    fi
+done
+
 if [ "${TF_IMAGE_AWS_ENV:-0}" = 1 ]; then
     if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
         set -- -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" "$@"

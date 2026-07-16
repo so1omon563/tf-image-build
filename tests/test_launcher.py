@@ -125,6 +125,31 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(returncode, 0)
         self.assertIn("-it", arguments)
 
+    def test_supplementary_host_groups_are_forwarded(self):
+        fake_id = self.bin_dir / "id"
+        fake_id.write_text(
+            "#!/bin/sh\n"
+            "case \"$1\" in\n"
+            "    -u) echo 1234 ;;\n"
+            "    -g) echo 5678 ;;\n"
+            "    -G) echo '5678 9012 3456' ;;\n"
+            "    *) exit 64 ;;\n"
+            "esac\n"
+        )
+        fake_id.chmod(0o755)
+
+        returncode, _, arguments = self.run_launcher()
+
+        self.assertEqual(returncode, 0)
+        user_index = arguments.index("--user")
+        self.assertEqual(arguments[user_index + 1], "1234:5678")
+        added_groups = [
+            arguments[index + 1]
+            for index, argument in enumerate(arguments)
+            if argument == "--group-add"
+        ]
+        self.assertCountEqual(added_groups, ["9012", "3456"])
+
     def test_requested_command_arguments_are_forwarded_after_the_image(self):
         returncode, _, arguments = self.run_launcher(
             "terraform", "fmt", "path with spaces"
