@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCHER = ROOT / "example_usage" / "tf_image"
+CI_RUNNER = ROOT / "example_usage" / "tg_ci.sh"
 AWS_VARIABLES = (
     "AWS_DEFAULT_REGION",
     "AWS_PROFILE",
@@ -151,6 +152,60 @@ class LauncherTests(unittest.TestCase):
         self.assertNotEqual(returncode, 0)
         self.assertIn("IMAGE is not set", stderr)
         self.assertEqual(arguments, [])
+
+
+class CiRunnerTests(unittest.TestCase):
+    def setUp(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.workspace = Path(self.tempdir.name)
+        self.capture = self.workspace / "tf-image-arguments"
+
+        launcher = self.workspace / "tf_image"
+        launcher.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os\n"
+            "import sys\n"
+            "with open(os.environ['TF_IMAGE_CAPTURE'], 'wb') as stream:\n"
+            "    stream.write(b'\\0'.join(arg.encode() for arg in sys.argv[1:]))\n"
+            "    stream.write(b'\\0')\n"
+        )
+        launcher.chmod(0o755)
+        self.env = os.environ | {"TF_IMAGE_CAPTURE": str(self.capture)}
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def run_ci(self, *arguments):
+        return subprocess.run(
+            [CI_RUNNER, *arguments],
+            cwd=self.workspace,
+            env=self.env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+    def test_requires_a_command(self):
+        result = self.run_ci()
+
+        self.assertEqual(result.returncode, 64)
+        self.assertIn("Usage: ./tg_ci.sh", result.stderr)
+        self.assertFalse(self.capture.exists())
+
+    def test_delegates_command_to_the_existing_launcher(self):
+        result = self.run_ci("terraform", "fmt", "-check", "path with spaces")
+
+        self.assertEqual(result.returncode, 0)
+        arguments = self.capture.read_bytes().rstrip(b"\0").decode().split("\0")
+        self.assertEqual(arguments[:2], ["sh", "-ceu"])
+        self.assertIn("tfenv install", arguments[2])
+        self.assertIn("tgenv install", arguments[2])
+        self.assertEqual(
+            arguments[-5:],
+            ["sh", "terraform", "fmt", "-check", "path with spaces"],
+        )
 
 
 if __name__ == "__main__":
