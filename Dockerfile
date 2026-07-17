@@ -26,7 +26,9 @@ ARG FZF_SOURCE_SHA256=e537d3834d1927cec96c630aea6c6813bbe60b83c453314dcfb9f58285
 COPY scripts/download-and-verify /usr/local/bin/download-and-verify
 COPY scripts/build-go-tools /usr/local/bin/build-go-tools
 
-RUN build-go-tools "${TARGETARCH}" /out
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    build-go-tools "${TARGETARCH}" /out
 
 FROM ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 

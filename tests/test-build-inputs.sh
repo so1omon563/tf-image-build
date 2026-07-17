@@ -32,6 +32,8 @@ for tool in TERRAFORM_DOCS TFLINT TRIVY FZF; do
     grep -Eq "^ARG ${tool}_SOURCE_SHA256=[0-9a-f]{64}$" "$repo_root/Dockerfile"
 done
 grep -F 'COPY --from=tool-builder /out/ /usr/local/bin/' "$repo_root/Dockerfile" >/dev/null
+grep -F -- '--mount=type=cache,target=/go/pkg/mod,sharing=locked' "$repo_root/Dockerfile" >/dev/null
+grep -F -- '--mount=type=cache,target=/root/.cache/go-build,sharing=locked' "$repo_root/Dockerfile" >/dev/null
 grep -F 'golang.org/x/crypto v0.52.0' "$repo_root/scripts/build-go-tools" >/dev/null
 grep -F 'golang.org/x/net v0.55.0' "$repo_root/scripts/build-go-tools" >/dev/null
 grep -F 'github.com/sigstore/rekor v1.5.2' "$repo_root/scripts/build-go-tools" >/dev/null
