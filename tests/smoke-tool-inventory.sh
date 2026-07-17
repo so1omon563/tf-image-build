@@ -64,7 +64,7 @@ touch /workspace/non-root-contract
 [ "$(stat -c %u /workspace/non-root-contract)" = "$(id -u)" ]
 rm /workspace/non-root-contract
 
-assert_version "aws-cli/2.35.23" aws --version
+assert_version "aws-cli/2.36.2" aws --version
 bat --version
 assert_version "3.3.8" checkov --version
 curl --version

@@ -13,7 +13,7 @@ class DependencyAuditTests(unittest.TestCase):
     def test_repository_pins_are_discovered(self):
         checks = {check.name: check for check in dependency_audit.build_checks(ROOT)}
 
-        self.assertEqual(checks["AWS CLI"].current, "2.35.23")
+        self.assertEqual(checks["AWS CLI"].current, "2.36.2")
         self.assertEqual(checks["Go"].current, "1.26.5")
         self.assertEqual(checks["Go"].source, "go-release:go")
         self.assertEqual(checks["Trivy"].current, "0.72.0")
