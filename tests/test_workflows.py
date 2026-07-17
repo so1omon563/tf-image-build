@@ -58,7 +58,7 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
         self.assertNotIn("load: true", self.release)
         self.assertEqual(self.release.count("docker/build-push-action@v7"), 1)
 
-    def test_release_publisher_only_assembles_validated_digests(self):
+    def test_release_publisher_does_not_rebuild_validated_digests(self):
         publisher = self.release.split("publish-release:", maxsplit=1)[1]
         self.assertIn("actions/download-artifact@v8", publisher)
         self.assertIn("docker buildx imagetools create", publisher)
@@ -66,7 +66,6 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
         self.assertIn("release-candidate-arm64.digest", publisher)
         self.assertIn('"${IMAGE_NAME}@${amd64_digest}"', publisher)
         self.assertIn('"${IMAGE_NAME}@${arm64_digest}"', publisher)
-        self.assertNotIn("actions/checkout", publisher)
         self.assertNotIn("docker/setup-qemu-action", publisher)
         self.assertNotIn("docker/build-push-action", publisher)
 
@@ -89,6 +88,16 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
             validation.index("run: docker logout"),
             validation.index("tests/test-image.sh"),
         )
+        publisher = self.release.split("publish-release:", maxsplit=1)[1]
+        self.assertLess(
+            publisher.index("run: docker logout"),
+            publisher.index("name: Checkout release tag for notes"),
+        )
+        self.assertLess(
+            publisher.index("name: Checkout release tag for notes"),
+            publisher.index("uses: so1omon563/release-creator@v1"),
+        )
+        self.assertIn("fetch-depth: 0", publisher)
 
     def test_release_pushes_only_from_a_merged_main_tag(self):
         self.assertIn("pull_request_target:", self.release)
