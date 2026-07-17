@@ -56,6 +56,11 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
             self.release,
         )
         self.assertIn(
+            "NEW_TAG: ${{ steps.version.outputs.new_version }}",
+            self.release,
+        )
+        self.assertIn('if [[ -n "${NEW_TAG}" ]]; then', self.release)
+        self.assertIn(
             "#(release|publish|ship)([[:space:]]|$)",
             self.release,
         )

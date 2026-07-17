@@ -30,13 +30,16 @@ jobs:
         id: release-intent
         env:
           BUMPER_REQUESTED: ${{ steps.version.outputs.should_release }}
+          NEW_TAG: ${{ steps.version.outputs.new_version }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           requested="${BUMPER_REQUESTED}"
-          if printf '%s\n' "${PR_TITLE}" |
-            grep -Eiq '(^|[[:space:]])#(release|publish|ship)([[:space:]]|$)'
-          then
-            requested=true
+          if [[ -n "${NEW_TAG}" ]]; then
+            if printf '%s\n' "${PR_TITLE}" |
+              grep -Eiq '(^|[[:space:]])#(release|publish|ship)([[:space:]]|$)'
+            then
+              requested=true
+            fi
           fi
           echo "requested=${requested}" >> "${GITHUB_OUTPUT}"
 
