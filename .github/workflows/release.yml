@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Bump version and push tag
         id: version
-        uses: so1omon563/custom-semver-bumper@v1
+        uses: so1omon563/custom-semver-bumper@v1.0.2
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch
