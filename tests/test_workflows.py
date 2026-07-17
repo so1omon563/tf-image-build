@@ -54,6 +54,13 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
         self.assertIn("open-pull-requests-limit: 2", self.dependabot)
         self.assertIn("open-pull-requests-limit: 1", self.dependabot)
 
+    def test_dependabot_keeps_supported_ubuntu_base(self):
+        docker_config = self.dependabot.split(
+            "package-ecosystem: docker", maxsplit=1
+        )[1]
+        self.assertIn("dependency-name: ubuntu", docker_config)
+        self.assertRegex(docker_config, re.compile(r'versions:\n\s+- "> 24\.04"'))
+
     def test_manual_dependency_audit_maintains_one_issue(self):
         self.assertIn('cron: "23 13 * * 3"', self.dependency_audit)
         self.assertIn("issues: write", self.dependency_audit)
