@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       new_tag: ${{ steps.version.outputs.new_version }}
-      release_requested: ${{ steps.version.outputs.should_release }}
+      release_requested: ${{ steps.release-intent.outputs.requested }}
     steps:
       - name: Bump version and push tag
         id: version
@@ -25,6 +25,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch
           release_marker: "#release #publish #ship"
+
+      - name: Resolve release intent
+        id: release-intent
+        env:
+          BUMPER_REQUESTED: ${{ steps.version.outputs.should_release }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          requested="${BUMPER_REQUESTED}"
+          if printf '%s\n' "${PR_TITLE}" |
+            grep -Eiq '(^|[[:space:]])#(release|publish|ship)([[:space:]]|$)'
+          then
+            requested=true
+          fi
+          echo "requested=${requested}" >> "${GITHUB_OUTPUT}"
 
   validate-release:
     name: Validate release (linux/${{ matrix.arch }})

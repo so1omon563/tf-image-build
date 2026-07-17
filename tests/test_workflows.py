@@ -46,6 +46,20 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
             1,
         )
 
+    def test_release_intent_supports_every_github_merge_strategy(self):
+        self.assertIn(
+            "release_requested: ${{ steps.release-intent.outputs.requested }}",
+            self.release,
+        )
+        self.assertIn(
+            "PR_TITLE: ${{ github.event.pull_request.title }}",
+            self.release,
+        )
+        self.assertIn(
+            "#(release|publish|ship)([[:space:]]|$)",
+            self.release,
+        )
+
     def test_dependabot_has_bounded_action_and_docker_queues(self):
         self.assertIn("package-ecosystem: github-actions", self.dependabot)
         self.assertIn("package-ecosystem: docker", self.dependabot)
