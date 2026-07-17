@@ -35,15 +35,71 @@ class MultiArchitectureWorkflowTests(unittest.TestCase):
             self.image_ci,
         )
 
-    def test_release_validates_natively_and_publishes_one_manifest(self):
+    def test_release_builds_each_architecture_once_and_tests_its_digest(self):
         self.assert_native_matrix(self.release)
         self.assertIn(
-            "tests/test-image.sh tf-image-build:release-candidate-${{ matrix.arch }} ${{ matrix.arch }}",
+            "outputs: type=image,name=${{ secrets.DOCKER_HUB_USERNAME }}/tf_image,push-by-digest=true,name-canonical=true,push=true",
             self.release,
         )
-        self.assertEqual(
-            self.release.count("platforms: linux/amd64,linux/arm64"),
-            1,
+        self.assertIn("provenance: mode=max", self.release)
+        self.assertIn("sbom: true", self.release)
+        self.assertIn(
+            'RELEASE_CANDIDATE: ${{ secrets.DOCKER_HUB_USERNAME }}/tf_image@${{ steps.build.outputs.digest }}',
+            self.release,
+        )
+        self.assertIn(
+            'tests/test-image.sh "${RELEASE_CANDIDATE}" ${{ matrix.arch }}',
+            self.release,
+        )
+        self.assertIn(
+            'scripts/scan-image "${RELEASE_CANDIDATE}" trivy-release-${{ matrix.arch }}.json',
+            self.release,
+        )
+        self.assertNotIn("load: true", self.release)
+        self.assertEqual(self.release.count("docker/build-push-action@v7"), 1)
+
+    def test_release_publisher_only_assembles_validated_digests(self):
+        publisher = self.release.split("publish-release:", maxsplit=1)[1]
+        self.assertIn("actions/download-artifact@v8", publisher)
+        self.assertIn("docker buildx imagetools create", publisher)
+        self.assertIn("release-candidate-amd64.digest", publisher)
+        self.assertIn("release-candidate-arm64.digest", publisher)
+        self.assertIn('"${IMAGE_NAME}@${amd64_digest}"', publisher)
+        self.assertIn('"${IMAGE_NAME}@${arm64_digest}"', publisher)
+        self.assertNotIn("actions/checkout", publisher)
+        self.assertNotIn("docker/setup-qemu-action", publisher)
+        self.assertNotIn("docker/build-push-action", publisher)
+
+    def test_release_preserves_attestations_and_verifies_both_tags(self):
+        publisher = self.release.split("publish-release:", maxsplit=1)[1]
+        self.assertIn("--format '{{json .SBOM}}'", publisher)
+        self.assertIn("--format '{{json .Provenance}}'", publisher)
+        self.assertIn('has("linux/amd64") and has("linux/arm64")', publisher)
+        self.assertIn(
+            'docker buildx imagetools inspect "${IMAGE_NAME}:latest" --raw',
+            publisher,
+        )
+        self.assertIn("cmp release-index.json latest-index.json", publisher)
+
+    def test_release_credentials_are_removed_before_repository_tests(self):
+        validation = self.release.split("validate-release:", maxsplit=1)[1].split(
+            "publish-release:", maxsplit=1
+        )[0]
+        self.assertLess(
+            validation.index("run: docker logout"),
+            validation.index("tests/test-image.sh"),
+        )
+
+    def test_release_pushes_only_from_a_merged_main_tag(self):
+        self.assertIn("pull_request_target:", self.release)
+        self.assertIn("types:\n      - closed", self.release)
+        self.assertIn(
+            "if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'",
+            self.release,
+        )
+        self.assertIn(
+            "ref: ${{ needs.bump-version.outputs.new_tag }}",
+            self.release,
         )
 
     def test_release_intent_supports_every_github_merge_strategy(self):

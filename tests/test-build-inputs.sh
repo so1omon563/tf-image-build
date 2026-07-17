@@ -52,7 +52,9 @@ grep -Fx '* @so1omon563' "$repo_root/.github/CODEOWNERS" >/dev/null
 grep -F 'cron: "17 13 * * 1"' "$repo_root/.github/workflows/image_ci.yml" >/dev/null
 grep -F "no-cache: \${{ github.event_name == 'schedule' }}" "$repo_root/.github/workflows/image_ci.yml" >/dev/null
 grep -F 'scripts/scan-image tf-image-build:ci-' "$repo_root/.github/workflows/image_ci.yml" >/dev/null
-grep -F 'scripts/scan-image tf-image-build:release-candidate-' "$repo_root/.github/workflows/release.yml" >/dev/null
+grep -F 'scripts/scan-image "${RELEASE_CANDIDATE}" trivy-release-' "$repo_root/.github/workflows/release.yml" >/dev/null
+grep -F 'push-by-digest=true,name-canonical=true,push=true' "$repo_root/.github/workflows/release.yml" >/dev/null
+grep -F 'docker buildx imagetools create' "$repo_root/.github/workflows/release.yml" >/dev/null
 grep -F 'retention-days: 90' "$repo_root/.github/workflows/release.yml" >/dev/null
 grep -F 'sbom: true' "$repo_root/.github/workflows/release.yml" >/dev/null
 grep -F 'provenance: mode=max' "$repo_root/.github/workflows/release.yml" >/dev/null

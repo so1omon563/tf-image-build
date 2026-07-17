@@ -8,7 +8,7 @@ The base digest and dated Ubuntu snapshot are reviewed at least quarterly and wh
 
 ## Build and scan cadence
 
-Pull requests, `main`, and the weekly scheduled workflow pull the pinned base before building. The scheduled workflow disables BuildKit cache so stale layers cannot hide package or scanner changes. Release candidates also use a clean, pull-enabled build on native AMD64 and ARM64 runners.
+Pull requests, `main`, and the weekly scheduled workflow pull the pinned base before building. The scheduled workflow disables BuildKit cache so stale layers cannot hide package or scanner changes. Release candidates also use a clean, pull-enabled build on native AMD64 and ARM64 runners. Each native release runner pushes its candidate by content digest with attestations, removes Docker Hub credentials, and then tests and scans that exact digest. The publisher does not check out repository code or rebuild the image; it only combines the two validated digest artifacts into the version and `latest` indexes.
 
 Every built image is exported to a tar archive and scanned without exposing the Docker daemon socket to the scanner. Trivy 0.72.0 is pinned by the multi-platform container digest `sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f`. Its vulnerability database remains current by design.
 
@@ -31,6 +31,6 @@ Expired or undocumented exceptions must not be renewed silently. A fixed CRITICA
 
 ## Release evidence
 
-Each release-candidate architecture retains its Trivy JSON report for 90 days. Ordinary CI reports are retained for 30 days. The image contract prints the uncompressed image size and verifies that APT metadata, build downloads, and temporary requirements are absent from the final image.
+Each release-candidate architecture retains its validated digest and Trivy JSON report for 90 days. Ordinary CI reports are retained for 30 days. The image contract prints the uncompressed image size and verifies that APT metadata, build downloads, and temporary requirements are absent from the final image.
 
 Published images include an SPDX SBOM attestation and max-level build provenance. Immutable version tags are never moved; `latest` points to the most recently reviewed release.
