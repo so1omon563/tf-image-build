@@ -14,7 +14,9 @@ class DependencyAuditTests(unittest.TestCase):
         checks = {check.name: check for check in dependency_audit.build_checks(ROOT)}
 
         self.assertEqual(checks["AWS CLI"].current, "2.35.23")
-        self.assertEqual(checks["Trivy"].current, "0.70.0")
+        self.assertEqual(checks["Go"].current, "1.26.5")
+        self.assertEqual(checks["Go"].source, "go-release:go")
+        self.assertEqual(checks["Trivy"].current, "0.72.0")
         self.assertEqual(checks["tfenv"].current, "3.2.2")
         self.assertEqual(checks["tfenv"].source, "github-tag:tfutils/tfenv")
         self.assertEqual(checks["actionlint"].current, "1.7.12")
@@ -54,6 +56,22 @@ class DependencyAuditTests(unittest.TestCase):
         self.assertEqual(
             dependency_audit.resolve_latest("pypi:example", responses.__getitem__),
             "4.0.0",
+        )
+
+    def test_go_release_tags_resolve_without_prereleases(self):
+        responses = {
+            "https://go.dev/dl/?mode=json": [
+                {"version": "go1.27rc1", "stable": False},
+                {"version": "go1.25.9", "stable": True},
+                {"version": "go1.26.5", "stable": True},
+            ]
+        }
+
+        self.assertEqual(
+            dependency_audit.resolve_latest(
+                "go-release:go", responses.__getitem__
+            ),
+            "1.26.5",
         )
 
     def test_audit_reports_updates_and_source_errors(self):

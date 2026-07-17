@@ -3,4 +3,5 @@
 !requirements.*.lock
 !scripts/
 !scripts/download-and-verify
+!scripts/build-go-tools
 !scripts/tgenv-wrapper

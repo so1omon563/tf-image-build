@@ -51,6 +51,12 @@ architecture checksum and retain the existing download verification. A Trivy
 update must also refresh the pinned scanner image digest in `scripts/scan-image`
 and the version recorded in `SECURITY.md`.
 
+The Go builder and the source-built terraform-docs, TFLint, Trivy, and fzf
+tools are one security unit. Updating one of those tools must refresh its exact
+release commit and source archive digest, review any minimum module overrides,
+and retain the checksum-pinned module sums in `scripts/build-go-tools`. A Go
+builder update requires the same native AMD64/ARM64 runtime and scan evidence.
+
 If an update fails, document the failure and the retry or deferral rationale in
 the rolling issue or pull request. Security deferrals require a Linear issue and
 the time-bounded exception process in `SECURITY.md`.

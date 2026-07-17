@@ -95,7 +95,13 @@ def build_checks(root: Path = ROOT) -> list[Check]:
             docker_args["AWS_CLI_VERSION"],
             "github-tag:aws/aws-cli",
             "https://github.com/aws/aws-cli/blob/v2/CHANGELOG.rst",
-        )
+        ),
+        Check(
+            "Go",
+            docker_args["GO_VERSION"],
+            "go-release:go",
+            "https://go.dev/dl/",
+        ),
     ]
 
     for name, (arg, repository) in GITHUB_RELEASES.items():
@@ -161,7 +167,7 @@ def fetch_json(url: str) -> dict | list:
 
 
 def strip_version_prefix(version: str) -> str:
-    return version.removeprefix("v")
+    return version.removeprefix("go").removeprefix("v")
 
 
 def stable_version_key(version: str) -> tuple[int, ...] | None:
@@ -191,6 +197,21 @@ def resolve_latest(source: str, fetcher: Callable[[str], dict | list] = fetch_js
         ]
         if not versions:
             raise ValueError(f"no stable version tags found for {value}")
+        return max(versions)[1]
+    if kind == "go-release":
+        data = fetcher("https://go.dev/dl/?mode=json")
+        if not isinstance(data, list):
+            raise ValueError("unexpected Go releases response")
+        versions = [
+            (stable_version_key(item["version"]), strip_version_prefix(item["version"]))
+            for item in data
+            if isinstance(item, dict)
+            and item.get("stable") is True
+            and isinstance(item.get("version"), str)
+            and stable_version_key(item["version"]) is not None
+        ]
+        if not versions:
+            raise ValueError("no stable Go releases found")
         return max(versions)[1]
     if kind == "pypi":
         data = fetcher(f"https://pypi.org/pypi/{value}/json")

@@ -10,9 +10,13 @@ The base digest and dated Ubuntu snapshot are reviewed at least quarterly and wh
 
 Pull requests, `main`, and the weekly scheduled workflow pull the pinned base before building. The scheduled workflow disables BuildKit cache so stale layers cannot hide package or scanner changes. Release candidates also use a clean, pull-enabled build on native AMD64 and ARM64 runners.
 
-Every built image is exported to a tar archive and scanned without exposing the Docker daemon socket to the scanner. Trivy 0.70.0 is pinned by the multi-platform container digest `sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e`. Its vulnerability database remains current by design.
+Every built image is exported to a tar archive and scanned without exposing the Docker daemon socket to the scanner. Trivy 0.72.0 is pinned by the multi-platform container digest `sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f`. Its vulnerability database remains current by design.
+
+The bundled terraform-docs, TFLint, Trivy, and fzf binaries are reproducibly built from verified release commits in a pinned Go 1.26.5 builder. Minimum module overrides are checksum-pinned when an upstream release still embeds a dependency with a fixed HIGH vulnerability. The retained scanner reports remain the authority for the resulting binary contents; version output alone is not treated as remediation evidence.
 
 Trivy scans both OS and application packages and retains a JSON report containing HIGH and CRITICAL findings. A release is blocked when a CRITICAL vulnerability has an available fixed version. Unfixed findings and HIGH findings remain visible in the report so maintainers can update the base or bundled tools without claiming they do not exist.
+
+The currently known unfixed HIGH findings are `CVE-2024-23342` in Python `ecdsa` and `CVE-2026-50163` in `oras-go`. Neither has an upstream fixed version. They stay visible in every report and do not weaken the fixed-CRITICAL gate.
 
 ## Exceptions
 
