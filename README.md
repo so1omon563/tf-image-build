@@ -27,7 +27,7 @@ Copy-ready examples for interactive development and non-interactive automation a
 | AWS CLI | 2.35.23 | AWS API access |
 | terraform-docs | 0.24.0 | Terraform documentation generation |
 | TFLint | 0.63.1 | Terraform linting and provider rules |
-| Trivy | 0.70.0 | IaC misconfiguration scanning and broader repository scanning |
+| Trivy | 0.72.0 | IaC misconfiguration scanning and broader repository scanning |
 | Checkov | 3.3.8 | Compatibility with existing Checkov policies and pre-commit hooks |
 | pre-commit | 4.6.0 | Repository hook execution |
 | tfenv | 3.2.2 | Workspace-selected Terraform versions |

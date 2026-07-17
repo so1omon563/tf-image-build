@@ -83,7 +83,7 @@ printf '%s\n' "$terraform_docs_version" | grep -F "$expected_docs_arch" >/dev/nu
 assert_version "tfenv 3.2.2" tfenv --version
 assert_version "TFLint version 0.63.1" tflint --version
 tgenv --version
-assert_version "Version: 0.70.0" trivy --version
+assert_version "Version: 0.72.0" trivy --version
 vim --version >/dev/null
 zsh --version
 

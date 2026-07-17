@@ -1,0 +1,138 @@
+#!/bin/sh
+
+set -eu
+
+target_arch=${1:?usage: build-go-tools TARGETARCH OUTPUT_DIR}
+output_dir=${2:?usage: build-go-tools TARGETARCH OUTPUT_DIR}
+
+case "$target_arch" in
+    amd64|arm64)
+        ;;
+    *)
+        echo "unsupported TARGETARCH: $target_arch" >&2
+        exit 1
+        ;;
+esac
+
+: "${TERRAFORM_DOCS_VERSION:?TERRAFORM_DOCS_VERSION is required}"
+: "${TERRAFORM_DOCS_COMMIT:?TERRAFORM_DOCS_COMMIT is required}"
+: "${TERRAFORM_DOCS_SOURCE_SHA256:?TERRAFORM_DOCS_SOURCE_SHA256 is required}"
+: "${TFLINT_VERSION:?TFLINT_VERSION is required}"
+: "${TFLINT_COMMIT:?TFLINT_COMMIT is required}"
+: "${TFLINT_SOURCE_SHA256:?TFLINT_SOURCE_SHA256 is required}"
+: "${TRIVY_VERSION:?TRIVY_VERSION is required}"
+: "${TRIVY_COMMIT:?TRIVY_COMMIT is required}"
+: "${TRIVY_SOURCE_SHA256:?TRIVY_SOURCE_SHA256 is required}"
+: "${FZF_VERSION:?FZF_VERSION is required}"
+: "${FZF_COMMIT:?FZF_COMMIT is required}"
+: "${FZF_SOURCE_SHA256:?FZF_SOURCE_SHA256 is required}"
+
+workdir=$(mktemp -d)
+trap 'rm -rf "$workdir"' EXIT HUP INT TERM
+
+export CGO_ENABLED=0
+export GOARCH="$target_arch"
+export GOOS=linux
+export GOTOOLCHAIN=local
+
+mkdir -p "$output_dir"
+
+fetch_source() {
+    project=$1
+    repository=$2
+    commit=$3
+    sha256=$4
+    archive="$workdir/$project.tar.gz"
+    source="$workdir/$project"
+
+    download-and-verify \
+        "https://codeload.github.com/$repository/tar.gz/$commit" \
+        "$archive" \
+        "$sha256"
+    mkdir -p "$source"
+    tar -xzf "$archive" -C "$source" --strip-components=1
+}
+
+pin_module() {
+    module=$1
+    version=$2
+    sum=$3
+    mod_sum=$4
+
+    go mod edit "-require=$module@$version"
+    printf '%s %s %s\n' "$module" "$version" "$sum" >> go.sum
+    printf '%s %s/go.mod %s\n' "$module" "$version" "$mod_sum" >> go.sum
+    go mod download "$module@$version"
+}
+
+fetch_source \
+    terraform-docs \
+    terraform-docs/terraform-docs \
+    "$TERRAFORM_DOCS_COMMIT" \
+    "$TERRAFORM_DOCS_SOURCE_SHA256"
+cd "$workdir/terraform-docs"
+pin_module \
+    golang.org/x/crypto v0.52.0 \
+    h1:RMs7fP2rXdep0CftQlK8Uf+kibLm7qkCcradZWYz988= \
+    h1:1QgfPxDqh0T2M/elOJtp9RvuR95kVjir0e6/BvEmGbc=
+pin_module \
+    golang.org/x/net v0.55.0 \
+    h1:bcvxaJn3e1U6InsFWt1JUq1aSjnRxLzT2rtD2KfkDF8= \
+    h1:L5U2KuzuOe1lY7Z+aWVIKK6qEeJXnXV9yzGA+WCHJww=
+go build \
+    -buildvcs=false \
+    -mod=mod \
+    -trimpath \
+    -ldflags="-s -w -X github.com/terraform-docs/terraform-docs/internal/version.commit=$(printf '%.7s' "$TERRAFORM_DOCS_COMMIT")" \
+    -o "$output_dir/terraform-docs" \
+    .
+
+fetch_source \
+    tflint \
+    terraform-linters/tflint \
+    "$TFLINT_COMMIT" \
+    "$TFLINT_SOURCE_SHA256"
+cd "$workdir/tflint"
+pin_module \
+    github.com/sigstore/rekor v1.5.2 \
+    h1:k6pX4o1zFAzAvDbXiVIp5IHj1b0wcDaxsbsbNpuRO8o= \
+    h1:WkMnITBccOFauPkT6yte74tF5gC83pefKRGZvNOsbjI=
+go build \
+    -buildvcs=false \
+    -mod=mod \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o "$output_dir/tflint" \
+    .
+
+fetch_source \
+    trivy \
+    aquasecurity/trivy \
+    "$TRIVY_COMMIT" \
+    "$TRIVY_SOURCE_SHA256"
+cd "$workdir/trivy"
+pin_module \
+    oras.land/oras-go/v2 v2.6.1 \
+    h1:bonOEkjLfp8tt6qXWRRWP6p1F+9octchOf2EqnWB4Zs= \
+    h1:dhtFrFOuZuDtAVeZ9FUnaa5zfzplG3ZnFX9/uH1J/Yk=
+GOEXPERIMENT=jsonv2 go build \
+    -buildvcs=false \
+    -mod=mod \
+    -trimpath \
+    -ldflags="-s -w -extldflags=-static -X github.com/aquasecurity/trivy/pkg/version/app.ver=$TRIVY_VERSION" \
+    -o "$output_dir/trivy" \
+    ./cmd/trivy/
+
+fetch_source \
+    fzf \
+    junegunn/fzf \
+    "$FZF_COMMIT" \
+    "$FZF_SOURCE_SHA256"
+cd "$workdir/fzf"
+go build \
+    -buildvcs=false \
+    -mod=readonly \
+    -trimpath \
+    -ldflags="-s -w -X main.version=$FZF_VERSION -X main.revision=$(printf '%.8s' "$FZF_COMMIT")" \
+    -o "$output_dir/fzf" \
+    .
