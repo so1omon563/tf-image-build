@@ -39,7 +39,7 @@ assert_version() {
 
 for command_name in \
     aws bat checkov curl fd fzf git jq pip3 pre-commit python3 ssh \
-    terraform-docs tfenv tflint tgenv trivy vim zsh
+    terraform-docs tenv tfenv tflint tgenv trivy vim zsh
 do
     assert_command "$command_name"
 done
@@ -82,7 +82,8 @@ printf '%s\n' "$terraform_docs_version" | grep -F "v0.24.0" >/dev/null
 printf '%s\n' "$terraform_docs_version" | grep -F "$expected_docs_arch" >/dev/null
 assert_version "tfenv 3.2.2" tfenv --version
 assert_version "TFLint version 0.64.0" tflint --version
-tgenv --version
+assert_version "tenv version v4.14.8" tenv version
+assert_version "tgenv compatibility facade (tenv version v4.14.8)" tgenv --version
 assert_version "Version: 0.72.0" trivy --version
 vim --version >/dev/null
 zsh --version
@@ -90,21 +91,70 @@ zsh --version
 fixture_dir=/tests/fixtures/version-files
 version_workspace=$(mktemp -d)
 cp "$fixture_dir/.terraform-version" "$fixture_dir/.terragrunt-version" "$version_workspace/"
+version_child="$version_workspace/nested"
+mkdir "$version_child"
+chmod 0444 "$version_workspace/.terragrunt-version"
+
+# Existing cache mounts remain valid, but old tgenv binaries are not trusted or
+# reused by tenv. Both layouts must coexist during the compatibility period.
+legacy_version=0.0.0
+mkdir -p "$HOME/.tgenv/versions/$legacy_version"
 
 [ "$(cd "$version_workspace" && tfenv version-name)" = "$(cat "$fixture_dir/.terraform-version")" ]
-tgenv_version=$(cd "$version_workspace" && tgenv version-name | tail -n 1)
+tgenv_version=$(cd "$version_child" && tgenv version-name | tail -n 1)
 [ "$tgenv_version" = "$(cat "$fixture_dir/.terragrunt-version")" ]
 
 if ! (cd "$version_workspace" && tfenv install) >/tmp/tfenv-install.log 2>&1; then
     cat /tmp/tfenv-install.log >&2
     exit 1
 fi
-if ! (cd "$version_workspace" && tgenv install) >/tmp/tgenv-install.log 2>&1; then
+# Direct Terragrunt invocation preserves tgenv's historical auto-install
+# default while tenv itself retains its upstream opt-in default.
+if ! (cd "$version_child" && terragrunt --version) >/tmp/terragrunt-auto-install.log 2>&1; then
+    cat /tmp/terragrunt-auto-install.log >&2
+    exit 1
+fi
+[ -x "$HOME/.tgenv/Terragrunt/$tgenv_version/terragrunt" ]
+[ -d "$HOME/.tgenv/versions/$legacy_version" ]
+
+if ! (cd "$version_child" && tenv tg install) >/tmp/tenv-install.log 2>&1; then
+    cat /tmp/tenv-install.log >&2
+    exit 1
+fi
+if ! (cd "$version_child" && tgenv install) >/tmp/tgenv-install.log 2>&1; then
     cat /tmp/tgenv-install.log >&2
     exit 1
 fi
+
+if ! tgenv list | grep -F "$tgenv_version" >/dev/null; then
+    echo "tgenv compatibility list omitted $tgenv_version" >&2
+    exit 1
+fi
+
+# Concurrent no-op installs exercise tenv's cache locking without repeating
+# the network download in every native architecture job.
+(cd "$version_child" && tenv tg install "$tgenv_version") >/tmp/tenv-concurrent-1.log 2>&1 &
+tenv_pid_1=$!
+(cd "$version_child" && tenv tg install "$tgenv_version") >/tmp/tenv-concurrent-2.log 2>&1 &
+tenv_pid_2=$!
+if ! wait "$tenv_pid_1"; then
+    cat /tmp/tenv-concurrent-1.log >&2
+    exit 1
+fi
+if ! wait "$tenv_pid_2"; then
+    cat /tmp/tenv-concurrent-2.log >&2
+    exit 1
+fi
+
+opt_out_root=$(mktemp -d)
+if (cd "$version_child" && TENV_ROOT="$opt_out_root" TGENV_AUTO_INSTALL=false terragrunt --version) >/tmp/terragrunt-opt-out.log 2>&1; then
+    echo "TGENV_AUTO_INSTALL=false unexpectedly installed Terragrunt" >&2
+    exit 1
+fi
+[ ! -e "$opt_out_root/Terragrunt/$tgenv_version/terragrunt" ]
+
 [ "$(cd "$version_workspace" && terraform version -json | jq -r .terraform_version)" = "$(cat "$fixture_dir/.terraform-version")" ]
-terragrunt_version=$(cd "$version_workspace" && terragrunt --version)
+terragrunt_version=$(cd "$version_child" && terragrunt --version)
 printf '%s\n' "$terragrunt_version" | grep -F "$(cat "$fixture_dir/.terragrunt-version")" >/dev/null
 
 if grep -E '^[[:space:]]*terraform([[:space:]]|$)' /etc/bash.bashrc /etc/zsh/zshrc; then

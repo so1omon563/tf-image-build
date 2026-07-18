@@ -27,7 +27,7 @@ if [ -f .terraform-version ]; then
     tfenv install
 fi
 if [ -f .terragrunt-version ]; then
-    tgenv install
+    tenv tg install
 fi
 exec "$@"
 ' sh "$@"

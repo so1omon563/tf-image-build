@@ -356,7 +356,7 @@ class CiRunnerTests(unittest.TestCase):
         image_index = arguments.index("example/image:test")
         self.assertEqual(arguments[image_index + 1 : image_index + 3], ["sh", "-ceu"])
         self.assertIn("tfenv install", arguments[image_index + 3])
-        self.assertIn("tgenv install", arguments[image_index + 3])
+        self.assertIn("tenv tg install", arguments[image_index + 3])
         self.assertEqual(
             arguments[-5:],
             ["sh", "terraform", "fmt", "-check", "path with spaces"],

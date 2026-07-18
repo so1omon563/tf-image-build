@@ -45,7 +45,7 @@ GITHUB_RELEASES = {
     "TFLint": ("TFLINT_VERSION", "terraform-linters/tflint"),
     "Trivy": ("TRIVY_VERSION", "aquasecurity/trivy"),
     "fzf": ("FZF_VERSION", "junegunn/fzf"),
-    "tgenv": ("TGENV_VERSION", "tgenv/tgenv"),
+    "tenv": ("TENV_VERSION", "tofuutils/tenv"),
 }
 
 PYPI_PROJECTS = {

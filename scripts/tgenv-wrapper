@@ -3,37 +3,279 @@
 set -eu
 
 : "${HOME:?HOME must be set}"
-tgenv_root=${TGENV_DATA_DIR:-"$HOME/.tgenv"}
-libexec_link="$tgenv_root/libexec"
-changelog_link="$tgenv_root/CHANGELOG.md"
 
-mkdir -p "$tgenv_root"
-if [ -e "$libexec_link" ] && [ ! -L "$libexec_link" ]; then
-    echo "tgenv: $libexec_link exists and is not a symlink" >&2
-    exit 1
+tenv_binary=${TENV_BINARY:-/opt/tenv/tenv}
+terragrunt_binary=${TERRAGRUNT_BINARY:-/opt/tenv/terragrunt}
+tenv_root=${TENV_ROOT:-${TGENV_DATA_DIR:-${TGENV_ROOT:-"$HOME/.tgenv"}}}
+
+export TENV_ROOT="$tenv_root"
+mkdir -p "$TENV_ROOT"
+
+if [ -n "${TGENV_ARCH:-}" ] && [ -z "${TENV_ARCH:-}" ]; then
+    export TENV_ARCH="$TGENV_ARCH"
 fi
-if [ ! -L "$libexec_link" ]; then
-    ln -s /opt/tgenv/libexec "$libexec_link"
+if [ -n "${TGENV_DEBUG:-}" ] && [ -z "${TENV_LOG:-}" ]; then
+    export TENV_LOG=trace
 fi
-if [ -e "$changelog_link" ] && [ ! -L "$changelog_link" ]; then
-    echo "tgenv: $changelog_link exists and is not a symlink" >&2
-    exit 1
+if [ -n "${TGENV_DISABLE_COLOR:-}" ] && [ -z "${NO_COLOR:-}" ]; then
+    export NO_COLOR=1
 fi
-if [ ! -L "$changelog_link" ]; then
-    ln -s /opt/tgenv/CHANGELOG.md "$changelog_link"
+if [ -n "${TGENV_AUTO_INSTALL:-}" ] && [ -z "${TENV_AUTO_INSTALL+x}" ]; then
+    export TENV_AUTO_INSTALL="$TGENV_AUTO_INSTALL"
 fi
 
-export TGENV_ROOT="$tgenv_root"
+fail() {
+    echo "tgenv: $*" >&2
+    exit 1
+}
+
+find_local_version_file() {
+    directory=$PWD
+    while :; do
+        if [ -f "$directory/.terragrunt-version" ]; then
+            printf '%s\n' "$directory/.terragrunt-version"
+            return 0
+        fi
+        [ "$directory" = / ] && break
+        parent=${directory%/*}
+        [ -n "$parent" ] || parent=/
+        [ "$parent" = "$directory" ] && break
+        directory=$parent
+    done
+
+    if [ -f "$HOME/.terragrunt-version" ]; then
+        printf '%s\n' "$HOME/.terragrunt-version"
+        return 0
+    fi
+    return 1
+}
+
+version_file() {
+    if local_file=$(find_local_version_file); then
+        printf '%s\n' "$local_file"
+    elif [ -f "$TENV_ROOT/version" ]; then
+        printf '%s\n' "$TENV_ROOT/version"
+    elif [ -f "$TENV_ROOT/Terragrunt/version" ]; then
+        printf '%s\n' "$TENV_ROOT/Terragrunt/version"
+    else
+        printf '%s\n' "$TENV_ROOT/version"
+    fi
+}
+
+read_version() {
+    selected_file=$1
+    [ -f "$selected_file" ] || fail "Version could not be resolved (set by $selected_file or tgenv use <version>)"
+    selected_version=$(sed -n '1p' "$selected_file" | tr -d '\r')
+    [ -n "$selected_version" ] || fail "Version could not be resolved (set by $selected_file or tgenv use <version>)"
+    printf '%s\n' "$selected_version"
+}
+
+migrate_legacy_global_version() {
+    legacy_version_file=$TENV_ROOT/version
+    tenv_version_file=$TENV_ROOT/Terragrunt/version
+    if ! find_local_version_file >/dev/null 2>&1 && \
+        [ -f "$legacy_version_file" ] && \
+        [ ! -e "$tenv_version_file" ]; then
+        mkdir -p "$TENV_ROOT/Terragrunt"
+        cp "$legacy_version_file" "$tenv_version_file"
+    fi
+}
+
+installed_versions() {
+    for versions_dir in "$TENV_ROOT/Terragrunt" "$TENV_ROOT/versions"; do
+        [ -d "$versions_dir" ] || continue
+        for version_dir in "$versions_dir"/*; do
+            [ -d "$version_dir" ] || continue
+            basename "$version_dir"
+        done
+    done | sort -u | sort -t. -k 1nr,1 -k 2nr,2 -k 3nr,3
+}
+
+resolve_installed() {
+    requested=$1
+    case "$requested" in
+        latest)
+            regex='^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$'
+            ;;
+        latest:*)
+            regex=${requested#latest:}
+            ;;
+        *)
+            printf '%s\n' "$requested"
+            return 0
+            ;;
+    esac
+
+    resolved=$(installed_versions | grep -e "$regex" | sed -n '1p')
+    [ -n "$resolved" ] || fail "No installed versions of terragrunt matched '$requested'"
+    printf '%s\n' "$resolved"
+}
+
+is_installed() {
+    [ -x "$TENV_ROOT/Terragrunt/$1/terragrunt" ] || \
+        [ -x "$TENV_ROOT/versions/$1/terragrunt" ]
+}
+
+version_name() {
+    selected_file=$(version_file)
+    requested=$(read_version "$selected_file")
+    selected=$(resolve_installed "$requested")
+    if ! is_installed "$selected"; then
+        echo "tgenv: version '$selected' is not installed (set by $selected_file)" >&2
+    fi
+    printf '%s\n' "$selected"
+}
+
+list_versions() {
+    [ "$#" -eq 0 ] || fail "usage: tgenv list"
+    versions=$(installed_versions)
+    [ -n "$versions" ] || fail "No versions available. Please install one with: tgenv install"
+    selected=$(version_name 2>/dev/null || true)
+    selected_file=$(version_file)
+    printf '%s\n' "$versions" | while IFS= read -r version; do
+        if [ "$version" = "$selected" ]; then
+            printf '* %s (set by %s)\n' "$version" "$selected_file"
+        else
+            printf '  %s\n' "$version"
+        fi
+    done
+}
+
+install_version() {
+    [ "$#" -le 1 ] || fail "usage: tgenv install [<version>]"
+    if [ "$#" -eq 1 ]; then
+        select_after_install=true
+        requested=$1
+    else
+        select_after_install=false
+        selected_file=$(version_file)
+        requested=$(read_version "$selected_file")
+    fi
+
+    case "$requested" in
+        latest:*)
+            regex=${requested#latest:}
+            requested=$("$tenv_binary" tg list-remote --descending --stable | grep -e "$regex" | sed -n '1p')
+            [ -n "$requested" ] || fail "No versions matching '$regex' found in remote"
+            ;;
+    esac
+    "$tenv_binary" tg install "$requested"
+    if [ "$select_after_install" = true ]; then
+        use_version "$requested"
+    fi
+}
+
+uninstall_version() {
+    [ "$#" -le 1 ] || fail "usage: tgenv uninstall [<version>]"
+    if [ "$#" -eq 1 ]; then
+        selected=$(resolve_installed "$1")
+    else
+        selected=$(version_name)
+    fi
+
+    new_path="$TENV_ROOT/Terragrunt/$selected"
+    legacy_path="$TENV_ROOT/versions/$selected"
+    if [ ! -d "$new_path" ] && [ ! -d "$legacy_path" ]; then
+        fail "No versions matching '$selected' found in local"
+    fi
+    if [ -d "$new_path" ]; then
+        "$tenv_binary" tg uninstall "$selected"
+    fi
+    if [ -d "$legacy_path" ]; then
+        rm -rf "$legacy_path"
+        echo "Uninstallation of legacy Terragrunt $selected successful"
+    fi
+}
+
+use_version() {
+    [ "$#" -le 1 ] || fail "usage: tgenv use [<version>]"
+    local_file=$(find_local_version_file || true)
+    if [ "$#" -eq 1 ]; then
+        requested=$1
+    elif [ -n "$local_file" ]; then
+        requested=$(read_version "$local_file")
+    else
+        requested=latest
+    fi
+
+    if [ -n "$local_file" ]; then
+        local_dir=${local_file%/*}
+        (cd "$local_dir" && "$tenv_binary" tg use --no-install --working-dir "$requested")
+    else
+        "$tenv_binary" tg use --no-install "$requested"
+        cp "$TENV_ROOT/Terragrunt/version" "$TENV_ROOT/version"
+    fi
+
+    TENV_AUTO_INSTALL=false "$terragrunt_binary" --version >/dev/null
+}
+
+tgenv_main() {
+    command=${1:-help}
+    [ "$#" -eq 0 ] || shift
+    case "$command" in
+        --version | version)
+            backend_version=$("$tenv_binary" version)
+            printf 'tgenv compatibility facade (%s)\n' "$backend_version"
+            ;;
+        help | --help | -h)
+            cat <<'EOF'
+Usage: tgenv <command> [args]
+
+Compatibility commands: install, use, uninstall, list, list-remote,
+version-name, version-file, --version, and upgrade.
+
+New integrations should use `tenv tg` directly.
+EOF
+            ;;
+        install)
+            install_version "$@"
+            ;;
+        list)
+            list_versions "$@"
+            ;;
+        list-remote)
+            [ "$#" -eq 0 ] || fail "usage: tgenv list-remote"
+            exec "$tenv_binary" tg list-remote --descending --stable
+            ;;
+        uninstall)
+            uninstall_version "$@"
+            ;;
+        use)
+            use_version "$@"
+            ;;
+        version-name)
+            [ "$#" -eq 0 ] || fail "usage: tgenv version-name"
+            version_name
+            ;;
+        version-file)
+            [ "$#" -eq 0 ] || fail "usage: tgenv version-file"
+            version_file
+            ;;
+        upgrade)
+            fail "upgrade is unavailable in this immutable image; use a newer image tag"
+            ;;
+        *)
+            fail "unknown command '$command'; run 'tgenv help'"
+            ;;
+    esac
+}
 
 case ${0##*/} in
+    tenv)
+        exec "$tenv_binary" "$@"
+        ;;
     terragrunt)
-        exec /opt/tgenv/bin/terragrunt "$@"
+        migrate_legacy_global_version
+        if [ -z "${TENV_AUTO_INSTALL+x}" ]; then
+            export TENV_AUTO_INSTALL=true
+        fi
+        exec "$terragrunt_binary" "$@"
         ;;
     tgenv)
-        exec /opt/tgenv/bin/tgenv "$@"
+        tgenv_main "$@"
         ;;
     *)
-        echo "tgenv wrapper must be invoked as tgenv or terragrunt" >&2
+        echo "tgenv wrapper must be invoked as tenv, tgenv, or terragrunt" >&2
         exit 1
         ;;
 esac

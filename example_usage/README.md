@@ -11,7 +11,7 @@ image:
 
 - `.image` selects the image and tag to run.
 - `.terraform-version` selects the Terraform version through `tfenv`.
-- `.terragrunt-version` selects the Terragrunt version through `tgenv`; omit it
+- `.terragrunt-version` selects the Terragrunt version through `tenv`; omit it
   when the repository does not use Terragrunt.
 - `tf_image` starts an interactive shell or runs one command in the image.
 - `tg_ci.sh` runs a command non-interactively after installing the versions
@@ -52,7 +52,7 @@ install:
 
 ### `.terragrunt-version`
 
-This plain-text file selects the Terragrunt version that `tgenv install` will
+This plain-text file selects the Terragrunt version that `tenv tg install` will
 install:
 
 ```text
@@ -80,10 +80,16 @@ Install the repository-selected versions inside the container when needed:
 
 ```shell
 tfenv install
-tgenv install
+tenv tg install
 terraform version
 terragrunt --version
 ```
+
+Older repositories may continue using `tgenv install`. The image retains a
+compatibility facade for the common tgenv commands and `TGENV_*` inputs, but
+new integrations should use `tenv tg`. Existing cached home mounts remain
+valid; the first run redownloads selected Terragrunt versions into tenv's
+checksum-verified internal layout.
 
 The published image supports Linux AMD64 and Linux ARM64. Docker selects the
 native variant automatically, including on Apple Silicon; no machine-wide

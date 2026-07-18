@@ -16,7 +16,7 @@ Credential access is explicit. The launcher can forward populated AWS environmen
 
 Common Ubuntu package names are exposed as the expected `fd` and `bat` commands, and retained tools are available to non-interactive commands through the image `PATH`.
 
-Terraform and Terragrunt versions are not baked into the image or installed during shell startup. Add `.terraform-version` and `.terragrunt-version` files to a workspace, then run `tfenv install` and `tgenv install` explicitly.
+Terraform and Terragrunt versions are not baked into the image or installed during shell startup. Add `.terraform-version` and `.terragrunt-version` files to a workspace, then run `tfenv install` and `tenv tg install` explicitly. Direct `terragrunt` invocation also auto-installs the selected version for compatibility with existing image workflows.
 
 Copy-ready examples for interactive development and non-interactive automation are documented in [`example_usage`](example_usage/README.md).
 
@@ -31,10 +31,10 @@ Copy-ready examples for interactive development and non-interactive automation a
 | Checkov | 3.3.8 | Compatibility with existing Checkov policies and pre-commit hooks |
 | pre-commit | 4.6.0 | Repository hook execution |
 | tfenv | 3.2.2 | Workspace-selected Terraform versions |
-| tgenv | 1.3.0 (`fc6b4bc`) | Workspace-selected Terragrunt versions |
+| tenv | 4.14.8 | Workspace-selected Terragrunt versions |
 | fzf | 0.74.0 | Interactive command-line selection |
 
-Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The architecture-independent `tfenv` and `tgenv` source archives are pinned to exact commits and digests. The Ubuntu 24.04 LTS base is pinned to a multi-platform OCI digest, and APT resolves Noble packages from one dated Canonical archive snapshot. Checkov, pre-commit, and every Python transitive dependency are installed into an isolated Python 3.12 virtual environment from the matching `requirements.amd64.lock` or `requirements.arm64.lock` with required SHA-256 hashes. `aws-runas` is intentionally host-side and is not bundled.
+Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The `tfenv` source archive is pinned to an exact commit and digest. `tenv` and its Terragrunt proxy are built for the target architecture from an exact commit and verified source digest with the image's pinned Go toolchain, avoiding known vulnerabilities in the upstream v4.14.8 release binaries. The Ubuntu 24.04 LTS base is pinned to a multi-platform OCI digest, and APT resolves Noble packages from one dated Canonical archive snapshot. Checkov, pre-commit, and every Python transitive dependency are installed into an isolated Python 3.12 virtual environment from the matching `requirements.amd64.lock` or `requirements.arm64.lock` with required SHA-256 hashes. `aws-runas` is intentionally host-side and is not bundled.
 
 The direct Python requirements live in `requirements.in`. Regenerate each lock on its target architecture under Python 3.12 with pip-tools 7.5.2. This matters because dependency markers can produce architecture-specific graphs:
 
@@ -43,7 +43,32 @@ docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src python:3.12-slim@s
 docker run --rm --platform linux/arm64 -v "$PWD:/src" -w /src python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.arm64.lock requirements.in'
 ```
 
-The maintained `tgenv` `v1.3.0` tag still prints `tgenv 0.2.0` because its version command reads the first entry in an upstream changelog that was not updated for the tag. The image pins and verifies the `v1.3.0` commit rather than modifying upstream source to disguise that reporting bug.
+## Migrating from tgenv to tenv
+
+The image uses maintained [`tenv`](https://github.com/tofuutils/tenv) for
+Terragrunt installation, checksum validation, version selection, and proxy
+execution. New automation should use:
+
+```shell
+tenv tg install
+terragrunt --version
+```
+
+An image-owned `tgenv` compatibility facade remains available for existing
+consumers. It preserves `.terragrunt-version`, parent-directory resolution,
+the `install`, `use`, `uninstall`, `list`, `list-remote`, `version-name`, and
+`version-file` commands, and direct `terragrunt` auto-install. It translates
+`TGENV_DATA_DIR`, `TGENV_AUTO_INSTALL`, `TGENV_ARCH`, `TGENV_DEBUG`, and
+`TGENV_DISABLE_COLOR` to tenv behavior. `tgenv upgrade` fails deliberately:
+bundled dependencies are changed only through a new immutable image release.
+
+The compatibility root remains `$HOME/.tgenv`, so existing volume mounts keep
+working. Tenv stores Terragrunt under `Terragrunt/<version>` rather than the old
+`versions/<version>` layout. Old and new directories can coexist, but the first
+run downloads each selected version once into tenv's checksum-verified layout.
+Files inside the old manager's undocumented cache layout are not a supported
+interface. Set `TENV_GITHUB_TOKEN` when authenticated GitHub API access is
+needed in high-volume CI.
 
 ## Migrating from tfsec to Trivy
 
