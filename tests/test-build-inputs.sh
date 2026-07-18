@@ -36,7 +36,10 @@ grep -F -- '--mount=type=cache,target=/go/pkg/mod,sharing=locked' "$repo_root/Do
 grep -F -- '--mount=type=cache,target=/root/.cache/go-build,sharing=locked' "$repo_root/Dockerfile" >/dev/null
 grep -F 'golang.org/x/crypto v0.52.0' "$repo_root/scripts/build-go-tools" >/dev/null
 grep -F 'golang.org/x/net v0.55.0' "$repo_root/scripts/build-go-tools" >/dev/null
-grep -F 'github.com/sigstore/rekor v1.5.2' "$repo_root/scripts/build-go-tools" >/dev/null
+if grep -F 'github.com/sigstore/rekor v1.5.2' "$repo_root/scripts/build-go-tools"; then
+    echo 'TFLint must not downgrade upstream sigstore/rekor 1.5.3' >&2
+    exit 1
+fi
 grep -F 'oras.land/oras-go/v2 v2.6.1' "$repo_root/scripts/build-go-tools" >/dev/null
 if grep -Eq '(TERRAFORM_DOCS|TFLINT|TRIVY|FZF)_(AMD64|ARM64)_SHA256=' "$repo_root/Dockerfile"; then
     echo 'Go tools must come from the verified source-build stage' >&2

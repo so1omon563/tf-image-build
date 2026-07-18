@@ -93,10 +93,6 @@ fetch_source \
     "$TFLINT_COMMIT" \
     "$TFLINT_SOURCE_SHA256"
 cd "$workdir/tflint"
-pin_module \
-    github.com/sigstore/rekor v1.5.2 \
-    h1:k6pX4o1zFAzAvDbXiVIp5IHj1b0wcDaxsbsbNpuRO8o= \
-    h1:WkMnITBccOFauPkT6yte74tF5gC83pefKRGZvNOsbjI=
 go build \
     -buildvcs=false \
     -mod=mod \
