@@ -70,6 +70,17 @@ read_version() {
     printf '%s\n' "$selected_version"
 }
 
+migrate_legacy_global_version() {
+    legacy_version_file=$TENV_ROOT/version
+    tenv_version_file=$TENV_ROOT/Terragrunt/version
+    if ! find_local_version_file >/dev/null 2>&1 && \
+        [ -f "$legacy_version_file" ] && \
+        [ ! -e "$tenv_version_file" ]; then
+        mkdir -p "$TENV_ROOT/Terragrunt"
+        cp "$legacy_version_file" "$tenv_version_file"
+    fi
+}
+
 installed_versions() {
     for versions_dir in "$TENV_ROOT/Terragrunt" "$TENV_ROOT/versions"; do
         [ -d "$versions_dir" ] || continue
@@ -254,6 +265,7 @@ case ${0##*/} in
         exec "$tenv_binary" "$@"
         ;;
     terragrunt)
+        migrate_legacy_global_version
         if [ -z "${TENV_AUTO_INSTALL+x}" ]; then
             export TENV_AUTO_INSTALL=true
         fi

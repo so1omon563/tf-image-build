@@ -206,6 +206,22 @@ class TgenvCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(self.captured()["auto"], "true")
 
+    def test_terragrunt_migrates_legacy_global_default_once(self):
+        legacy_version_file = self.home / ".tgenv" / "version"
+        legacy_version_file.parent.mkdir(parents=True)
+        legacy_version_file.write_text("0.54.19\n")
+
+        result = self.run_command("terragrunt", "--version")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        tenv_version_file = self.home / ".tgenv" / "Terragrunt" / "version"
+        self.assertEqual(tenv_version_file.read_text(), "0.54.19\n")
+
+        tenv_version_file.write_text("1.10.0\n")
+        second_result = self.run_command("terragrunt", "--version")
+        self.assertEqual(second_result.returncode, 0, second_result.stderr)
+        self.assertEqual(tenv_version_file.read_text(), "1.10.0\n")
+
     def test_version_output_reports_the_real_backend(self):
         result = self.run_command("tgenv", "--version")
 
