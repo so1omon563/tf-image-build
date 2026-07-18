@@ -133,8 +133,10 @@ list_versions() {
 install_version() {
     [ "$#" -le 1 ] || fail "usage: tgenv install [<version>]"
     if [ "$#" -eq 1 ]; then
+        select_after_install=true
         requested=$1
     else
+        select_after_install=false
         selected_file=$(version_file)
         requested=$(read_version "$selected_file")
     fi
@@ -146,7 +148,10 @@ install_version() {
             [ -n "$requested" ] || fail "No versions matching '$regex' found in remote"
             ;;
     esac
-    exec "$tenv_binary" tg install "$requested"
+    "$tenv_binary" tg install "$requested"
+    if [ "$select_after_install" = true ]; then
+        use_version "$requested"
+    fi
 }
 
 uninstall_version() {

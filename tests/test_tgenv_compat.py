@@ -229,6 +229,15 @@ class TgenvCompatibilityTests(unittest.TestCase):
         self.assertEqual(self.captured()["args"].strip(), "tg install 0.54.19")
         self.assertEqual(version_file.read_text(), "0.54.19\n")
 
+    def test_install_explicit_version_selects_global_default(self):
+        result = self.run_command("tgenv", "install", "0.54.19")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        tenv_version_file = self.home / ".tgenv" / "Terragrunt" / "version"
+        legacy_version_file = self.home / ".tgenv" / "version"
+        self.assertEqual(tenv_version_file.read_text(), "0.54.19\n")
+        self.assertEqual(legacy_version_file.read_text(), "0.54.19\n")
+
     def test_version_name_resolves_parent_file_and_latest_across_layouts(self):
         workspace = self.directory / "workspace"
         child = workspace / "nested"
