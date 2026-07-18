@@ -19,6 +19,12 @@ class DependencyAuditTests(unittest.TestCase):
         self.assertEqual(checks["Trivy"].current, "0.72.0")
         self.assertEqual(checks["tfenv"].current, "3.2.2")
         self.assertEqual(checks["tfenv"].source, "github-tag:tfutils/tfenv")
+        self.assertEqual(checks["tenv"].current, "4.14.8")
+        self.assertEqual(
+            checks["tenv"].source,
+            "github-release:tofuutils/tenv",
+        )
+        self.assertNotIn("tgenv", checks)
         self.assertEqual(checks["actionlint"].current, "1.7.12")
         self.assertEqual(checks["Hadolint"].current, "2.14.0")
         self.assertEqual(

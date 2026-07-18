@@ -27,10 +27,19 @@ grep -F 'aquasec/trivy@sha256:' "$repo_root/scripts/scan-image" >/dev/null
 grep -F 'vulnerabilities: []' "$repo_root/security/trivyignore.yaml" >/dev/null
 
 # Rebuild vulnerable Go tools from verified releases with fixed dependencies.
-for tool in TERRAFORM_DOCS TFLINT TRIVY FZF; do
+for tool in TERRAFORM_DOCS TFLINT TRIVY FZF TENV; do
     grep -Eq "^ARG ${tool}_COMMIT=[0-9a-f]{40}$" "$repo_root/Dockerfile"
     grep -Eq "^ARG ${tool}_SOURCE_SHA256=[0-9a-f]{64}$" "$repo_root/Dockerfile"
 done
+grep -Eq '^ARG TENV_VERSION=[0-9]+\.[0-9]+\.[0-9]+$' "$repo_root/Dockerfile"
+grep -F 'tofuutils/tenv' "$repo_root/scripts/build-go-tools" >/dev/null
+grep -F 'main.version=v$TENV_VERSION' "$repo_root/scripts/build-go-tools" >/dev/null
+grep -F 'mv /usr/local/bin/tenv-backend /opt/tenv/tenv' "$repo_root/Dockerfile" >/dev/null
+grep -F 'mv /usr/local/bin/terragrunt-backend /opt/tenv/terragrunt' "$repo_root/Dockerfile" >/dev/null
+if grep -Eq 'TGENV_(VERSION|COMMIT|SHA256)|codeload.github.com/tgenv|/opt/tgenv' "$repo_root/Dockerfile"; then
+    echo 'the abandoned tgenv implementation must not remain in the image build' >&2
+    exit 1
+fi
 grep -F 'COPY --from=tool-builder /out/ /usr/local/bin/' "$repo_root/Dockerfile" >/dev/null
 grep -F -- '--mount=type=cache,target=/go/pkg/mod,sharing=locked' "$repo_root/Dockerfile" >/dev/null
 grep -F -- '--mount=type=cache,target=/root/.cache/go-build,sharing=locked' "$repo_root/Dockerfile" >/dev/null
@@ -41,7 +50,7 @@ if grep -F 'github.com/sigstore/rekor v1.5.2' "$repo_root/scripts/build-go-tools
     exit 1
 fi
 grep -F 'oras.land/oras-go/v2 v2.6.1' "$repo_root/scripts/build-go-tools" >/dev/null
-if grep -Eq '(TERRAFORM_DOCS|TFLINT|TRIVY|FZF)_(AMD64|ARM64)_SHA256=' "$repo_root/Dockerfile"; then
+if grep -Eq '(TERRAFORM_DOCS|TFLINT|TRIVY|FZF|TENV)_(AMD64|ARM64)_SHA256=' "$repo_root/Dockerfile"; then
     echo 'Go tools must come from the verified source-build stage' >&2
     exit 1
 fi

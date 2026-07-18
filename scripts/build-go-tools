@@ -26,6 +26,9 @@ esac
 : "${FZF_VERSION:?FZF_VERSION is required}"
 : "${FZF_COMMIT:?FZF_COMMIT is required}"
 : "${FZF_SOURCE_SHA256:?FZF_SOURCE_SHA256 is required}"
+: "${TENV_VERSION:?TENV_VERSION is required}"
+: "${TENV_COMMIT:?TENV_COMMIT is required}"
+: "${TENV_SOURCE_SHA256:?TENV_SOURCE_SHA256 is required}"
 
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT HUP INT TERM
@@ -132,3 +135,25 @@ go build \
     -ldflags="-s -w -X main.version=$FZF_VERSION -X main.revision=$(printf '%.8s' "$FZF_COMMIT")" \
     -o "$output_dir/fzf" \
     .
+
+fetch_source \
+    tenv \
+    tofuutils/tenv \
+    "$TENV_COMMIT" \
+    "$TENV_SOURCE_SHA256"
+cd "$workdir/tenv"
+go build \
+    -buildvcs=false \
+    -mod=readonly \
+    -trimpath \
+    -ldflags="-s -w -X main.version=v$TENV_VERSION" \
+    -o "$output_dir/tenv-backend" \
+    ./cmd/tenv
+go build \
+    -buildvcs=false \
+    -mod=readonly \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o "$output_dir/terragrunt-backend" \
+    ./cmd/terragrunt
+cp LICENSE "$output_dir/tenv-LICENSE"

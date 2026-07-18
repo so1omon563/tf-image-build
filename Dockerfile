@@ -23,6 +23,10 @@ ARG FZF_VERSION=0.74.0
 ARG FZF_COMMIT=6765f464a60e39afc20775f54f7ba40896bf1b81
 ARG FZF_SOURCE_SHA256=e537d3834d1927cec96c630aea6c6813bbe60b83c453314dcfb9f58285a8bd0b
 
+ARG TENV_VERSION=4.14.8
+ARG TENV_COMMIT=b2a26925fb77627c89f9fa1172a904231aff7cfa
+ARG TENV_SOURCE_SHA256=6dfb54624b59f51887ac1723ba7cd238d25ad8de8a7aaf86b33f9a9f92e290d3
+
 COPY scripts/download-and-verify /usr/local/bin/download-and-verify
 COPY scripts/build-go-tools /usr/local/bin/build-go-tools
 
@@ -46,10 +50,6 @@ ARG AWS_CLI_ARM64_SHA256=7f41af8314f5a8d84742a7cf3e37e55d898355a6b605bcacb68adcf
 ARG TFENV_VERSION=3.2.2
 ARG TFENV_COMMIT=de6ce2e809c155cbc5e2cfeb3b1bef151244e045
 ARG TFENV_SHA256=a0f681f2434e8b27b2de8de05618c1b4d5bb867ea3724337fa39083cd3c77bb0
-
-ARG TGENV_VERSION=1.3.0
-ARG TGENV_COMMIT=fc6b4bc42913126ab3c0061896ba0fa920e07a84
-ARG TGENV_SHA256=744bec99b007fbb8456a67678886bb0a86e44747acf7376d096f4157c64e9935
 
 COPY requirements.${TARGETARCH}.lock /tmp/requirements.lock
 COPY scripts/download-and-verify /usr/local/bin/download-and-verify
@@ -121,12 +121,11 @@ RUN \
     tar -xzf tfenv.tar.gz -C /opt/tfenv --strip-components=1 && \
     ln -s /opt/tfenv/bin/terraform /usr/local/bin/terraform && \
     ln -s /opt/tfenv/bin/tfenv /usr/local/bin/tfenv && \
-    download-and-verify \
-        "https://codeload.github.com/tgenv/tgenv/tar.gz/${TGENV_COMMIT}" \
-        tgenv.tar.gz \
-        "${TGENV_SHA256}" && \
-    mkdir -p /opt/tgenv && \
-    tar -xzf tgenv.tar.gz -C /opt/tgenv --strip-components=1 && \
+    mkdir -p /opt/tenv && \
+    mv /usr/local/bin/tenv-backend /opt/tenv/tenv && \
+    mv /usr/local/bin/terragrunt-backend /opt/tenv/terragrunt && \
+    mv /usr/local/bin/tenv-LICENSE /opt/tenv/LICENSE && \
+    ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/tenv && \
     ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/terragrunt && \
     ln -s /usr/local/bin/tgenv-wrapper /usr/local/bin/tgenv && \
     python3 -m venv /opt/python && \
