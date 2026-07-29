@@ -14,6 +14,16 @@ The image starts `/bin/zsh` as the unprivileged `terraform` user. The example la
 
 Credential access is explicit. The launcher can forward populated AWS environment variables, mount `~/.aws` read-only, or forward only `SSH_AUTH_SOCK`; it never mounts the host's private-key directory. See [`example_usage`](example_usage/README.md) for the opt-in variables and trust boundary.
 
+On Docker Desktop for macOS, the image also detects a healthy sudo-free
+`aws-metadata-agent` user-mode endpoint at
+`http://host.docker.internal:18080` and configures the standard
+`AWS_EC2_METADATA_SERVICE_ENDPOINT` setting for child processes. An explicitly
+supplied endpoint remains authoritative, and an unavailable user-mode endpoint
+leaves the standard `169.254.169.254` IMDS behavior unchanged. This integration
+is image-specific: arbitrary unmodified images remain system-mode-only. Any
+configured container can retrieve renewable credentials for the agent's one
+globally active profile, so endpoint reachability is credential access.
+
 Common Ubuntu package names are exposed as the expected `fd` and `bat` commands, and retained tools are available to non-interactive commands through the image `PATH`.
 
 Terraform and Terragrunt versions are not baked into the image or installed during shell startup. Add `.terraform-version` and `.terragrunt-version` files to a workspace, then run `tfenv install` and `tenv tg install` explicitly. Direct `terragrunt` invocation also auto-installs the selected version for compatibility with existing image workflows.

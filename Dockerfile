@@ -168,6 +168,7 @@ RUN \
     apt-get clean
 
 COPY --chmod=0755 scripts/tgenv-wrapper /usr/local/bin/tgenv-wrapper
+COPY --chmod=0755 scripts/tf-image-entrypoint /usr/local/bin/tf-image-entrypoint
 
 ENV HOME=/home/terraform \
     HISTFILE=/home/terraform/.zsh_history \
@@ -177,4 +178,5 @@ ENV HOME=/home/terraform \
 
 USER terraform
 WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/tf-image-entrypoint"]
 CMD ["/bin/zsh"]
