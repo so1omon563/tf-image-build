@@ -133,10 +133,10 @@ aws-metadata use <profile_name>
 The image configures
 `AWS_EC2_METADATA_SERVICE_ENDPOINT=http://host.docker.internal:18080` only when
 the caller did not supply an endpoint and the host service answers its
-credential-free health check. No copied `tf_image` or `tg_ci.sh` change is
-required. Every container that can reach the endpoint can retrieve credentials
-for the agent's one globally active profile, so use this only with trusted
-workloads.
+credential-free IMDSv2 token probe. No copied `tf_image` or `tg_ci.sh` change
+is required. Every container that can reach the endpoint can retrieve
+credentials for the agent's one globally active profile, so use this only with
+trusted workloads.
 
 `aws-runas` is not installed in the image. When user mode is unavailable or
 per-run environment credentials are intentionally preferred, run it on the

@@ -16,13 +16,14 @@ Credential access is explicit. The launcher can forward populated AWS environmen
 
 On Docker Desktop for macOS, v1.0.2 and later images also detect a healthy
 sudo-free `aws-metadata-agent` user-mode endpoint at
-`http://host.docker.internal:18080` and configures the standard
-`AWS_EC2_METADATA_SERVICE_ENDPOINT` setting for child processes. An explicitly
-supplied endpoint remains authoritative, and an unavailable user-mode endpoint
-leaves the standard `169.254.169.254` IMDS behavior unchanged. This integration
-is image-specific: arbitrary unmodified images remain system-mode-only. Any
-configured container can retrieve renewable credentials for the agent's one
-globally active profile, so endpoint reachability is credential access.
+`http://host.docker.internal:18080` with a credential-free IMDSv2 token probe
+and configure the standard `AWS_EC2_METADATA_SERVICE_ENDPOINT` setting for
+child processes. An explicitly supplied endpoint remains authoritative, and an
+unavailable user-mode endpoint leaves the standard `169.254.169.254` IMDS
+behavior unchanged. This integration is image-specific: arbitrary unmodified
+images remain system-mode-only. Any configured container can retrieve renewable
+credentials for the agent's one globally active profile, so endpoint
+reachability is credential access.
 
 Common Ubuntu package names are exposed as the expected `fd` and `bat` commands, and retained tools are available to non-interactive commands through the image `PATH`.
 
