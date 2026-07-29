@@ -14,8 +14,8 @@ The image starts `/bin/zsh` as the unprivileged `terraform` user. The example la
 
 Credential access is explicit. The launcher can forward populated AWS environment variables, mount `~/.aws` read-only, or forward only `SSH_AUTH_SOCK`; it never mounts the host's private-key directory. See [`example_usage`](example_usage/README.md) for the opt-in variables and trust boundary.
 
-On Docker Desktop for macOS, the image also detects a healthy sudo-free
-`aws-metadata-agent` user-mode endpoint at
+On Docker Desktop for macOS, v1.0.2 and later images also detect a healthy
+sudo-free `aws-metadata-agent` user-mode endpoint at
 `http://host.docker.internal:18080` and configures the standard
 `AWS_EC2_METADATA_SERVICE_ENDPOINT` setting for child processes. An explicitly
 supplied endpoint remains authoritative, and an unavailable user-mode endpoint

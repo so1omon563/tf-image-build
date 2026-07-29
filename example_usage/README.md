@@ -33,13 +33,13 @@ directory are illustrative, not image defaults.
 This shell-sourceable file sets the image used by both launchers:
 
 ```shell
-IMAGE=so1omon/tf_image:v0.5.0
+IMAGE=so1omon/tf_image:v1.0.2
 ```
 
-The example pins the non-root image release for reproducible local and CI use.
-Change the tag deliberately when adopting a new release. The moving
-`latest` channel remains available as an explicit opt-in when reproducibility is
-not required.
+The example pins the first release with automatic sudo-free
+`aws-metadata-agent` discovery for reproducible local and CI use. Change the tag
+deliberately when adopting a new release. The moving `latest` channel remains
+available as an explicit opt-in when reproducibility is not required.
 
 ### `.terraform-version`
 
@@ -119,9 +119,29 @@ Run `./tg_ci.sh` without arguments to display its command reference.
 
 ## AWS and SSH authentication
 
-`aws-runas` is not installed in the image. When it is available on the host,
-use it outside the image and explicitly allow the temporary AWS environment to
-cross the container boundary:
+On Docker Desktop for macOS, v1.0.2 and later automatically detect a healthy
+sudo-free `aws-metadata-agent` user-mode endpoint on the host. Select the
+globally active profile on the host, then run the existing launchers without
+AWS environment forwarding or AWS-file mounts:
+
+```shell
+aws-metadata use <profile_name>
+./tf_image
+./tg_ci.sh terraform plan
+```
+
+The image configures
+`AWS_EC2_METADATA_SERVICE_ENDPOINT=http://host.docker.internal:18080` only when
+the caller did not supply an endpoint and the host service answers its
+credential-free health check. No copied `tf_image` or `tg_ci.sh` change is
+required. Every container that can reach the endpoint can retrieve credentials
+for the agent's one globally active profile, so use this only with trusted
+workloads.
+
+`aws-runas` is not installed in the image. When user mode is unavailable or
+per-run environment credentials are intentionally preferred, run it on the
+host and explicitly allow those temporary values to cross the container
+boundary:
 
 ```shell
 aws-runas -E <profile_name> env TF_IMAGE_AWS_ENV=1 ./tf_image
