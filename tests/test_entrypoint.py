@@ -54,14 +54,17 @@ class EntrypointTests(unittest.TestCase):
         )
         return result
 
-    def test_reachable_user_mode_endpoint_is_exported_to_command(self):
+    def test_imdsv2_user_mode_endpoint_is_exported_to_command(self):
         result = self.run_entrypoint()
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, ENDPOINT)
-        self.assertIn(f"{ENDPOINT}/", self.curl_log.read_text().splitlines())
+        arguments = self.curl_log.read_text().splitlines()
+        self.assertIn("PUT", arguments)
+        self.assertIn("X-aws-ec2-metadata-token-ttl-seconds: 60", arguments)
+        self.assertIn(f"{ENDPOINT}/latest/api/token", arguments)
 
-    def test_unavailable_endpoint_preserves_standard_imds_fallback(self):
+    def test_incompatible_endpoint_preserves_standard_imds_fallback(self):
         result = self.run_entrypoint(CURL_EXIT="7")
 
         self.assertEqual(result.returncode, 0)
