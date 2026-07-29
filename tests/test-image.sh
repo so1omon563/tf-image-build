@@ -118,3 +118,5 @@ trap 'ssh-agent -k >/dev/null 2>&1 || true; rm -rf "$launcher_root"' EXIT HUP IN
         printf "%s\n" "$output" | grep -F "The agent has no identities."
     '
 )
+
+tests/test-user-mode-consumers.sh "$image"
