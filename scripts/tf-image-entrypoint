@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -eu
+
+endpoint=http://host.docker.internal:18080
+
+if [ "${AWS_EC2_METADATA_SERVICE_ENDPOINT+x}" != x ] &&
+    [ "${AWS_CONTAINER_CREDENTIALS_FULL_URI+x}" != x ] &&
+    [ "${AWS_CONTAINER_CREDENTIALS_RELATIVE_URI+x}" != x ] &&
+    curl --noproxy '*' --silent --fail \
+        --connect-timeout 1 --max-time 1 --output /dev/null \
+        "${endpoint}/" 2>/dev/null; then
+    export AWS_EC2_METADATA_SERVICE_ENDPOINT=$endpoint
+fi
+
+exec "$@"

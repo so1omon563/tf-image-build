@@ -11,6 +11,12 @@ if [ "$image_cmd" != '["/bin/zsh"]' ]; then
     exit 1
 fi
 
+image_entrypoint=$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image")
+if [ "$image_entrypoint" != '["/usr/local/bin/tf-image-entrypoint"]' ]; then
+    echo "unexpected image entrypoint: $image_entrypoint" >&2
+    exit 1
+fi
+
 image_user=$(docker image inspect --format '{{.Config.User}}' "$image")
 if [ "$image_user" != terraform ]; then
     echo "unexpected image user: $image_user" >&2
@@ -19,6 +25,19 @@ fi
 
 image_size=$(docker image inspect --format '{{.Size}}' "$image")
 printf 'image-size-bytes=%s\n' "$image_size"
+
+docker run --rm \
+    --platform "linux/$arch" \
+    --add-host host.docker.internal:127.0.0.1 \
+    "$image" \
+    sh -ceu 'test "${AWS_EC2_METADATA_SERVICE_ENDPOINT+x}" != x'
+
+docker run --rm \
+    --platform "linux/$arch" \
+    --env AWS_EC2_METADATA_SERVICE_ENDPOINT=http://explicit.example \
+    "$image" \
+    sh -ceu \
+    'test "$AWS_EC2_METADATA_SERVICE_ENDPOINT" = http://explicit.example'
 
 docker run --rm \
     --platform "linux/$arch" \
