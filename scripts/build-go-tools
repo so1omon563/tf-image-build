@@ -75,9 +75,9 @@ fetch_source \
     "$TERRAFORM_DOCS_SOURCE_SHA256"
 cd "$workdir/terraform-docs"
 pin_module \
-    golang.org/x/crypto v0.52.0 \
-    h1:RMs7fP2rXdep0CftQlK8Uf+kibLm7qkCcradZWYz988= \
-    h1:1QgfPxDqh0T2M/elOJtp9RvuR95kVjir0e6/BvEmGbc=
+    golang.org/x/crypto v0.55.0 \
+    h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M= \
+    h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 pin_module \
     golang.org/x/net v0.55.0 \
     h1:bcvxaJn3e1U6InsFWt1JUq1aSjnRxLzT2rtD2KfkDF8= \
@@ -96,6 +96,10 @@ fetch_source \
     "$TFLINT_COMMIT" \
     "$TFLINT_SOURCE_SHA256"
 cd "$workdir/tflint"
+pin_module \
+    golang.org/x/crypto v0.55.0 \
+    h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M= \
+    h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 go build \
     -buildvcs=false \
     -mod=mod \
@@ -110,6 +114,10 @@ fetch_source \
     "$TRIVY_COMMIT" \
     "$TRIVY_SOURCE_SHA256"
 cd "$workdir/trivy"
+pin_module \
+    golang.org/x/crypto v0.55.0 \
+    h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M= \
+    h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 pin_module \
     oras.land/oras-go/v2 v2.6.1 \
     h1:bonOEkjLfp8tt6qXWRRWP6p1F+9octchOf2EqnWB4Zs= \
@@ -142,16 +150,20 @@ fetch_source \
     "$TENV_COMMIT" \
     "$TENV_SOURCE_SHA256"
 cd "$workdir/tenv"
+pin_module \
+    golang.org/x/crypto v0.55.0 \
+    h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M= \
+    h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 go build \
     -buildvcs=false \
-    -mod=readonly \
+    -mod=mod \
     -trimpath \
     -ldflags="-s -w -X main.version=v$TENV_VERSION" \
     -o "$output_dir/tenv-backend" \
     ./cmd/tenv
 go build \
     -buildvcs=false \
-    -mod=readonly \
+    -mod=mod \
     -trimpath \
     -ldflags="-s -w" \
     -o "$output_dir/terragrunt-backend" \
