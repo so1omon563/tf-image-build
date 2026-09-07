@@ -43,7 +43,7 @@ fi
 grep -F 'COPY --from=tool-builder /out/ /usr/local/bin/' "$repo_root/Dockerfile" >/dev/null
 grep -F -- '--mount=type=cache,target=/go/pkg/mod,sharing=locked' "$repo_root/Dockerfile" >/dev/null
 grep -F -- '--mount=type=cache,target=/root/.cache/go-build,sharing=locked' "$repo_root/Dockerfile" >/dev/null
-grep -F 'golang.org/x/crypto v0.52.0' "$repo_root/scripts/build-go-tools" >/dev/null
+test "$(grep -Fc 'golang.org/x/crypto v0.55.0' "$repo_root/scripts/build-go-tools")" -eq 4
 grep -F 'golang.org/x/net v0.55.0' "$repo_root/scripts/build-go-tools" >/dev/null
 if grep -F 'github.com/sigstore/rekor v1.5.2' "$repo_root/scripts/build-go-tools"; then
     echo 'TFLint must not downgrade upstream sigstore/rekor 1.5.3' >&2
