@@ -1,2 +1,9 @@
 checkov==3.3.8
 pre-commit==4.6.0
+
+# Security floors for Checkov's transitive dependencies. Keep these when
+# regenerating either architecture's lockfile.
+# GitPython: CVE-2026-78676 and subsequent fixes through CVE-2026-114145.
+gitpython>=3.2.1
+# certifi: GHSA-6q48-6c7w-9gw2 (emSign CA trust removal).
+certifi>=2026.10.19
