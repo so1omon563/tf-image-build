@@ -117,3 +117,21 @@ workflow-only actionlint and Hadolint container references, and Ubuntu snapshot
 freshness. See
 [`DEPENDENCY_UPDATES.md`](DEPENDENCY_UPDATES.md) for triage, grouping, evidence,
 and failed-update requirements.
+
+### Publishing an already merged security fix
+
+A source tag alone does not mean an image or GitHub release was published. For
+example, [PR #38](https://github.com/so1omon563/tf-image-build/pull/38) put
+GitPython 3.2.1, certifi 2026.10.23, and the targeted emSign system CA removal
+into source tag `v1.0.9`, but its title had no publication marker.
+
+To publish an already merged fix, prepare a reviewed follow-up PR from current
+`main` with `#release` in its title. Merging that PR creates the next patch tag
+(`v1.0.10` after `v1.0.9`, provided no intervening version changes), runs clean
+native AMD64 and ARM64 release builds, and tests and scans the candidate digests.
+After both architectures pass, the workflow publishes
+`so1omon/tf_image:<new-tag>` and `so1omon/tf_image:latest` to Docker Hub and creates
+the GitHub release. Opening the PR runs ordinary image CI and review only.
+Preserve existing tags; do not move or delete them or rerun a completed version
+bumper to request publication. If a release fails after the bump, retry only
+failed jobs so the completed bump and validated candidates are reused.
