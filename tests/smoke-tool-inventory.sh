@@ -75,6 +75,8 @@ jq --version
 pip3 --version
 assert_version "pre-commit 4.6.0" pre-commit --version
 python3 --version
+python3 -m pip check
+python3 /tests/test-python-security.py
 ssh -V
 terraform_docs_version=$(terraform-docs --version 2>&1)
 printf '%s\n' "$terraform_docs_version"

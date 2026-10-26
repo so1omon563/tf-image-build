@@ -47,12 +47,26 @@ Copy-ready examples for interactive development and non-interactive automation a
 
 Release binaries are selected from BuildKit's target architecture and checked against pinned SHA-256 digests. The `tfenv` source archive is pinned to an exact commit and digest. `tenv` and its Terragrunt proxy are built for the target architecture from an exact commit and verified source digest with the image's pinned Go toolchain, avoiding known vulnerabilities in the upstream v4.14.8 release binaries. The Ubuntu 24.04 LTS base is pinned to a multi-platform OCI digest, and APT resolves Noble packages from one dated Canonical archive snapshot. Checkov, pre-commit, and every Python transitive dependency are installed into an isolated Python 3.12 virtual environment from the matching `requirements.amd64.lock` or `requirements.arm64.lock` with required SHA-256 hashes. `aws-runas` is intentionally host-side and is not bundled.
 
-The direct Python requirements live in `requirements.in`. Regenerate each lock on its target architecture under Python 3.12 with pip-tools 7.5.2. This matters because dependency markers can produce architecture-specific graphs:
+The direct Python requirements and transitive security floors live in `requirements.in`. Regenerate each lock on its target architecture under Python 3.12 with pip-tools 7.5.2. This matters because dependency markers can produce architecture-specific graphs:
 
 ```console
 docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.amd64.lock requirements.in'
 docker run --rm --platform linux/arm64 -v "$PWD:/src" -w /src python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de sh -c 'pip install pip-tools==7.5.2 && pip-compile --strip-extras --generate-hashes --resolver=backtracking --output-file=requirements.arm64.lock requirements.in'
 ```
+
+Existing locks preserve already resolved versions. For a targeted security
+refresh, add `--upgrade-package gitpython --upgrade-package certifi` to both
+`pip-compile` commands and retain the floors in `requirements.in`. These cover
+[GitPython's config-injection fix](https://github.com/gitpython-developers/GitPython/security/advisories/GHSA-284h-m62q-gf8w)
+and subsequent GitPython security fixes through 3.2.1, and
+[certifi's emSign trust removal](https://github.com/advisories/GHSA-6q48-6c7w-9gw2).
+
+The pinned Ubuntu snapshot predates [USN-8944-1](https://ubuntu.com/security/notices/USN-8944-1).
+Its system trust store, also used by Ubuntu's pip, explicitly disables only
+`mozilla/emSign_ECC_Root_CA_-_G3.crt` through `/etc/ca-certificates.conf` and
+`update-ca-certificates`. Remove this override when a reviewed snapshot refresh
+installs `ca-certificates` 20260816ubuntu0.24.04.1 or newer; retain the image
+contract that checks both system and Python trust stores.
 
 ## Migrating from tgenv to tenv
 

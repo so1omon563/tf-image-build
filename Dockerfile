@@ -77,6 +77,11 @@ RUN \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates && \
     rm /etc/apt/apt.conf.d/99snapshot-bootstrap && \
+    # The pinned snapshot predates USN-8944-1. Distrust only the compromised
+    # emSign root until a reviewed snapshot refresh supplies the official fix.
+    sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3\.crt$/s/^/!/' \
+        /etc/ca-certificates.conf && \
+    update-ca-certificates --fresh && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         bat \
